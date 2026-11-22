@@ -94,25 +94,30 @@ public class Main {
             System.out.println("Bolsín " + bolsin.getNumeroBolsin() + " | " + bolsin.getCMOrigen() + " -> "
                     + bolsin.getDestino().getNombre() + " | Estado: " + bolsin.getEstadoActual().getNombre());
             for (CambioEstadoBolsin cambio : bolsin.getCambioEstados()) {
-                System.out.println("    [" + cambio.getFechaHoraInicio() + " a "
-                        + (cambio.getFechaHoraFin() == null ? "vigente" : cambio.getFechaHoraFin()) + "] "
-                        + cambio.getEstado().getNombre() + " - " + cambio.getResponsable().getApellido());
+                System.out.println("    " + lineaDeHistorial(cambio.getFechaHoraInicio(), cambio.getFechaHoraFin(),
+                        cambio.getEstado().getNombre(), cambio.getResponsable()));
             }
             for (Remito remito : bolsin.getRemitos()) {
-                System.out.println("  Remito " + remito.getNumero() + " | Estado: "
-                        + remito.getEstadoActual().getNombre());
-                for (DetalleRemito detalle : remito.getDetallesRemito()) {
-                    Documentacion documentacion = detalle.getDocumentacion();
-                    System.out.println("    Doc. " + documentacion.getNumero() + " | "
-                            + documentacion.getAsunto() + " | Estado: "
-                            + documentacion.getEstadoActual().getNombre());
-                    for (CambioEstadoDocumentacion cambio : documentacion.getCambioEstadoDocumentacion()) {
-                        System.out.println("        [" + cambio.getFechaHoraInicio() + " a "
-                                + (cambio.getFechaHoraFin() == null ? "vigente" : cambio.getFechaHoraFin()) + "] "
-                                + cambio.getEstado().getNombre() + " - " + cambio.getResponsable().getApellido());
-                    }
-                }
+                mostrarRemito(remito);
             }
         }
+    }
+
+    private static void mostrarRemito(Remito remito) {
+        System.out.println("  Remito " + remito.getNumero() + " | Estado: " + remito.getEstadoActual().getNombre());
+        for (DetalleRemito detalle : remito.getDetallesRemito()) {
+            Documentacion documentacion = detalle.getDocumentacion();
+            System.out.println("    Doc. " + documentacion.getNumero() + " | " + documentacion.getAsunto()
+                    + " | Estado: " + documentacion.getEstadoActual().getNombre());
+            for (CambioEstadoDocumentacion cambio : documentacion.getCambioEstadoDocumentacion()) {
+                System.out.println("        " + lineaDeHistorial(cambio.getFechaHoraInicio(),
+                        cambio.getFechaHoraFin(), cambio.getEstado().getNombre(), cambio.getResponsable()));
+            }
+        }
+    }
+
+    /** "[inicio a fin] Estado - Apellido"; si el estado sigue vigente, en lugar de la fecha de fin dice "vigente". */
+    private static String lineaDeHistorial(LocalDateTime inicio, LocalDateTime fin, String estado, Empleado responsable) {
+        return "[" + inicio + " a " + (fin == null ? "vigente" : fin) + "] " + estado + " - " + responsable.getApellido();
     }
 }

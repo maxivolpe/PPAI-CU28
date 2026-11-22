@@ -104,7 +104,7 @@ src/main/resources/static/       Página web (React en el navegador, sin Node ni
     ├── ui.js                    Piezas reutilizables: Cargando, ErrorCarga, Estado, Aviso, ...
     ├── vistas/                  Una pantalla por archivo (selección, opciones, confirmación, ...)
     └── app.js                   Componente raíz (cabecera, pestañas) y arranque de React
-src/test/java/bolsines/          Tests del caso de uso
+src/test/java/bolsines/          Tests, agrupados por tipo (ver la sección Tests)
 ```
 
 Los archivos de `js/` no usan módulos: comparten el ámbito global y `index.html` los carga en el orden de dependencia, porque Babel traduce el JSX en el navegador. Al agregar un archivo nuevo hay que sumarlo a `index.html`.
@@ -170,7 +170,7 @@ sequenceDiagram
     P->>G: tomarSeleccionBolsin(n)
     G->>B: obtenerInformacionRemito()
     G->>P: mostrarInfoBolsin(...)
-    G->>P: solicitarOpcRecepcion(cmEsCentral)
+    G->>P: solicitarOpcRecepcion(cmEmpleado)
     EB->>P: elige opción (+ documentación marcada)
     P->>G: tomarOpcRecepcion(opcion, marcada)
     G->>P: solicitarConfirmacion(...)
@@ -212,7 +212,7 @@ Los estados concretos solo redefinen los eventos que tienen una flecha de salida
 ```java
 // EstadoBolsin.java
 public void registrarBolsinRecibido(Bolsin bolsin, ...) {
-    throw new TransicionNoPermitidaException("registrarBolsinRecibido", getNombre());
+    throw noPermitida("registrarBolsinRecibido");   // crea una TransicionNoPermitidaException
 }
 ```
 
@@ -317,12 +317,17 @@ stateDiagram-v2
 
 - **Sin condicionales por estado:** el gestor y los contextos no preguntan «¿en qué estado estás?». Salvo `sosEnviado()`, que es una consulta polimórfica para filtrar el listado.
 - **Transiciones inválidas, rechazadas por diseño:** intentar recibir un bolsín que ya fue recibido lanza `TransicionNoPermitidaException`, porque `RecibidoEnCMDestino` no redefine el evento (hay un test para esto).
-- **Agregar un estado = agregar una clase**, sin tocar el gestor ni los demás estados.
+- **Agregar un estado = agregar una clase**, sin tocar el gestor ni los demás estados (y sumarla a la lista de `MapeoEstados` para poder leerla de la base).
 - **Trazabilidad:** cada transición cierra el `CambioEstado` vigente y crea uno nuevo con fecha, hora y responsable.
 
 ### Persistencia
 
-En la base solo se guarda el **nombre** del estado actual. Al leer, `MapeoEstados` reconstruye el objeto estado concreto a partir de ese nombre. La grabación (`BaseDeDatos.guardarRecepcion`) se hace **recién cuando todas las transiciones terminaron bien**, así que una falla a mitad de camino no deja la recepción guardada a medias.
+En la base solo se guarda el **nombre** del estado actual. Al leer, `MapeoEstados` reconstruye el objeto estado concreto a partir de ese nombre.
+
+- **Todo o nada.** La grabación (`BaseDeDatos.guardarRecepcion`) se hace recién cuando todas las transiciones terminaron bien, y en una sola transacción: si algo falla a mitad de camino, no queda nada guardado a medias.
+- **El historial no se reescribe.** Por cada objeto que cambió de estado se hace en la base lo mismo que hizo el State en memoria: se cierra el cambio de estado vigente (fecha y hora de fin) y se agrega el nuevo.
+- **Sin pisar a otro usuario.** El estado del bolsín se actualiza solo si en la base sigue en el estado en que se leyó; si mientras tanto otro encargado lo recibió, se informa y no se guarda nada.
+- **Claves foráneas activas.** SQLite controla las `REFERENCES` del esquema solo si se le pide en cada conexión; `BaseDeDatos` lo hace siempre.
 
 ## Tests
 
@@ -330,4 +335,11 @@ En la base solo se guarda el **nombre** del estado actual. Al leer, `MapeoEstado
 mvn test
 ```
 
-`RegistrarRecepcionBolsinTest` cubre el flujo principal, los alternativos A1 a A6, las validaciones, el rechazo de una segunda recepción (patrón State) y el mismo caso de uso por HTTP.
+Los tests están agrupados en **cuatro clases, una por tipo de prueba**. Dentro de cada una, las clases anidadas agrupan por tema, y los nombres siguen la forma **`dado<Contexto>_cuando<Acción>_entonces<Resultado>`** con el cuerpo dividido en `// Given`, `// When`, `// Then`.
+
+| Clase | Tipo | Qué prueba | Base de datos |
+|---|---|---|---|
+| `PruebasUnitariasTest` | Unitarias | El patrón State (cada estado que no es «Enviado» / «En Bolsín Enviado» rechaza el evento; desde ese estado, cada evento lleva al estado siguiente y abre su cambio de estado), la cascada Bolsín → Remito → Documentación, las opciones de recepción y las consultas del bolsín. | No |
+| `PruebasDeIntegracionTest` | Integración | El `GestorRecepcion` paso por paso con un reloj fijo; la persistencia (ida y vuelta, atomicidad, dos usuarios con el mismo bolsín); la API web por HTTP. | Sí (temporal) |
+| `PruebasDeAceptacionTest` | Aceptación | El CU 28 de punta a punta por consola: flujo principal y alternativos A1 a A6, una clase anidada por flujo. | Sí (temporal) |
+| `PruebasDeArquitecturaTest` | Arquitectura | Las dependencias entre Boundary, Control, Entity y persistencia, y que el sistema conserve las 47 clases de la versión entregada. | No |

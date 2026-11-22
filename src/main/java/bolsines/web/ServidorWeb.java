@@ -12,6 +12,7 @@ import bolsines.entity.Empleado;
 import bolsines.entity.OpcionRecepcion;
 import bolsines.entity.Remito;
 import bolsines.entity.Sesion;
+import bolsines.entity.TransicionNoPermitidaException;
 import bolsines.persistencia.BaseDeDatos;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -19,6 +20,7 @@ import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
+import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
@@ -28,6 +30,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * Servidor HTTP (el que trae Java, sin frameworks). Hace dos cosas:
@@ -39,9 +42,13 @@ import java.util.Set;
  */
 public class ServidorWeb {
 
+    private static final System.Logger LOG = System.getLogger(ServidorWeb.class.getName());
+
     private final BaseDeDatos baseDeDatos;
     private final HttpServer servidor;
     private final PantallaRecepcionWeb pantalla = new PantallaRecepcionWeb();
+    /** Tabla de rutas: "MÉTODO /ruta" -> qué hacer con los parámetros del pedido. */
+    private final Map<String, Function<Map<String, String>, Object>> rutas = new LinkedHashMap<>();
 
     private Empleado empleadoLogueado;
     private InterfazServidorCorreo servidorCorreo;
@@ -51,6 +58,7 @@ public class ServidorWeb {
         this.baseDeDatos = baseDeDatos;
         this.servidor = HttpServer.create(new InetSocketAddress(puerto), 0);
         this.servidor.createContext("/", this::atender);
+        registrarRutas();
     }
 
     public void iniciar() {
@@ -65,88 +73,101 @@ public class ServidorWeb {
         return servidor.getAddress().getPort();
     }
 
+    /** Agregar un pedido nuevo a la API es agregar una línea acá. */
+    private void registrarRutas() {
+        rutas.put("GET /api/estado", parametros -> estado());
+        rutas.put("POST /api/sesion", this::iniciarSesion);
+        rutas.put("POST /api/recepcion/iniciar", this::iniciarRecepcion);        // paso 1 del CU
+        rutas.put("GET /api/recepcion/filtro", this::filtrar);                   // paso 4, alternativos A1 y A2
+        rutas.put("POST /api/recepcion/seleccion", this::seleccionarBolsin);     // paso 5
+        rutas.put("POST /api/recepcion/opcion", this::elegirOpcion);             // paso 8, alternativos A3, A4 y A5
+        rutas.put("POST /api/recepcion/confirmacion", this::confirmar);          // paso 10, alternativo A6
+        rutas.put("POST /api/recepcion/cancelar", this::cancelar);               // observación 1
+        rutas.put("GET /api/consulta", parametros -> consultarEstados());
+    }
+
     // ---------------------------------------------------------------- atención de pedidos
 
     private void atender(HttpExchange pedido) throws IOException {
         String ruta = pedido.getRequestURI().getPath();
+        if (!ruta.startsWith("/api/")) {
+            entregarArchivo(pedido, ruta);
+            return;
+        }
         try {
-            if (!ruta.startsWith("/api/")) {
-                entregarArchivo(pedido, ruta);
-                return;
-            }
             Object respuesta;
             synchronized (this) {
                 respuesta = atenderApi(pedido.getRequestMethod() + " " + ruta, parametros(pedido));
             }
-            responder(pedido, 200, "application/json", Json.escribir(respuesta).getBytes(StandardCharsets.UTF_8));
+            responderJson(pedido, 200, respuesta);
+        } catch (IllegalArgumentException | IllegalStateException | TransicionNoPermitidaException e) {
+            // Validaciones del gestor, pasos fuera de orden y transiciones no permitidas: se informan a la página.
+            responderJson(pedido, 400, Map.of("error", e.getMessage() == null ? "Pedido no válido." : e.getMessage()));
         } catch (RuntimeException e) {
-            // Validaciones del gestor y transiciones no permitidas: se informan a la página.
-            String mensaje = e.getMessage() == null ? "Error inesperado." : e.getMessage();
-            responder(pedido, 400, "application/json",
-                    Json.escribir(Map.of("error", mensaje)).getBytes(StandardCharsets.UTF_8));
+            // Cualquier otra cosa es un defecto del sistema: se registra y no se detalla al usuario.
+            LOG.log(System.Logger.Level.ERROR, "Error inesperado en " + ruta, e);
+            responderJson(pedido, 500, Map.of("error", "Error interno del servidor."));
         }
     }
 
     private Object atenderApi(String pedido, Map<String, String> parametros) {
-        switch (pedido) {
-            case "GET /api/estado":
-                return estado();
-
-            case "POST /api/sesion":
-                iniciarSesion(parametros.get("usuario"));
-                return estado();
-
-            case "POST /api/recepcion/iniciar":            // paso 1 del CU
-                exigirPaso("inicio", "exito");
-                pantalla.habilitarPantalla();
-                gestor.opcRegistrarRecepcion(pantalla);
-                return estado();
-
-            case "GET /api/recepcion/filtro":              // paso 4, alternativos A1 y A2
-                exigirPaso("seleccionBolsin");
-                return filtrar(parametros.get("precinto"), parametros.get("cmOrigen"));
-
-            case "POST /api/recepcion/seleccion":          // paso 5
-                exigirPaso("seleccionBolsin");
-                pantalla.limpiarMensaje();
-                gestor.tomarSeleccionBolsin(entero(parametros, "bolsin"));
-                return estado();
-
-            case "POST /api/recepcion/opcion":             // paso 8, alternativos A3, A4 y A5
-                exigirPaso("opcion");
-                pantalla.limpiarMensaje();
-                gestor.tomarOpcRecepcion(OpcionRecepcion.desdeNumero(entero(parametros, "numero")),
-                        numeros(parametros.get("documentacion")));
-                return estado();
-
-            case "POST /api/recepcion/confirmacion": {     // paso 10, alternativo A6
-                exigirPaso("confirmacion");
-                pantalla.limpiarMensaje();
-                int emailsPrevios = servidorCorreo.getEmailsEnviados().size();
-                gestor.tomarConfirmacion("true".equals(parametros.get("confirma")));
-                Map<String, Object> estado = estado();
-                estado.put("emails", emails(emailsPrevios));
-                return estado;
-            }
-
-            case "POST /api/recepcion/cancelar":           // observación 1
-                exigirPaso("seleccionBolsin", "opcion", "confirmacion");
-                gestor.cancelarCasoDeUso();
-                pantalla.volverAlInicio();
-                return estado();
-
-            case "GET /api/consulta":
-                return consultarEstados();
-
-            default:
-                throw new IllegalArgumentException("Pedido inexistente: " + pedido);
+        Function<Map<String, String>, Object> manejador = rutas.get(pedido);
+        if (manejador == null) {
+            throw new IllegalArgumentException("Pedido inexistente: " + pedido);
         }
+        return manejador.apply(parametros);
+    }
+
+    // ---------------------------------------------------------------- pasos del caso de uso
+
+    private Object iniciarSesion(Map<String, String> parametros) {
+        crearSesionPara(parametros.get("usuario"));
+        return estado();
+    }
+
+    private Object iniciarRecepcion(Map<String, String> parametros) {
+        exigirPaso("inicio", "exito");
+        pantalla.habilitarPantalla();
+        gestor.opcRegistrarRecepcion(pantalla);
+        return estado();
+    }
+
+    private Object seleccionarBolsin(Map<String, String> parametros) {
+        exigirPaso("seleccionBolsin");
+        pantalla.limpiarMensaje();
+        gestor.tomarSeleccionBolsin(entero(parametros, "bolsin"));
+        return estado();
+    }
+
+    private Object elegirOpcion(Map<String, String> parametros) {
+        exigirPaso("opcion");
+        pantalla.limpiarMensaje();
+        gestor.tomarOpcRecepcion(OpcionRecepcion.desdeNumero(entero(parametros, "numero")),
+                numeros(parametros.get("documentacion")));
+        return estado();
+    }
+
+    private Object confirmar(Map<String, String> parametros) {
+        exigirPaso("confirmacion");
+        pantalla.limpiarMensaje();
+        int emailsPrevios = servidorCorreo.getEmailsEnviados().size();
+        gestor.tomarConfirmacion("true".equals(parametros.get("confirma")));
+        Map<String, Object> estado = estado();
+        estado.put("emails", emails(emailsPrevios));
+        return estado;
+    }
+
+    private Object cancelar(Map<String, String> parametros) {
+        exigirPaso("seleccionBolsin", "opcion", "confirmacion");
+        gestor.cancelarCasoDeUso();
+        pantalla.volverAlInicio();
+        return estado();
     }
 
     // ---------------------------------------------------------------- sesión
 
     /** Simula el login (CU 5): crea la Sesión del empleado elegido y un gestor para ella. */
-    private void iniciarSesion(String nombreUsuario) {
+    private void crearSesionPara(String nombreUsuario) {
         for (Empleado empleado : baseDeDatos.buscarEmpleados()) {
             if (empleado.getUsuario().getNombre().equals(nombreUsuario)) {
                 empleadoLogueado = empleado;
@@ -172,6 +193,56 @@ public class ServidorWeb {
         throw new IllegalStateException("La acción no corresponde a este momento del caso de uso.");
     }
 
+    // ---------------------------------------------------------------- filtros (paso 4, A1 y A2)
+
+    /** Aplica los filtros del gestor. Sin resultados informa qué flujo alternativo ocurrió. */
+    private Object filtrar(Map<String, String> parametros) {
+        exigirPaso("seleccionBolsin");
+        String precinto = parametros.get("precinto");
+        String cmOrigen = parametros.get("cmOrigen");
+        List<Map<String, Object>> porPrecinto = tieneValor(precinto) ? filtrarPorPrecinto(precinto) : null;
+        List<Map<String, Object>> porOrigen = tieneValor(cmOrigen)
+                ? PantallaRecepcionWeb.bolsines(gestor.tomarFiltroCMOrigen(cmOrigen)) : null;
+
+        Map<String, Object> respuesta = new LinkedHashMap<>();
+        respuesta.put("bolsines", combinar(porPrecinto, porOrigen));
+        respuesta.put("flujoAlternativo", flujoAlternativo(porPrecinto, porOrigen));
+        return respuesta;
+    }
+
+    /** Un precinto que no es número no coincide con ninguno (A1). */
+    private List<Map<String, Object>> filtrarPorPrecinto(String precinto) {
+        try {
+            return PantallaRecepcionWeb.bolsines(gestor.tomarFiltroPrecinto(Integer.parseInt(precinto.trim())));
+        } catch (NumberFormatException e) {
+            return new ArrayList<>();
+        }
+    }
+
+    /** Los bolsines que cumplen los filtros pedidos; sin filtros, el listado completo. */
+    private Object combinar(List<Map<String, Object>> porPrecinto, List<Map<String, Object>> porOrigen) {
+        if (porPrecinto == null && porOrigen == null) {
+            return pantalla.getVista().get("bolsines");
+        }
+        if (porPrecinto == null) {
+            return porOrigen;
+        }
+        if (porOrigen != null) {
+            porPrecinto.retainAll(porOrigen);   // cumplen los dos filtros
+        }
+        return porPrecinto;
+    }
+
+    private String flujoAlternativo(List<Map<String, Object>> porPrecinto, List<Map<String, Object>> porOrigen) {
+        if (porPrecinto != null && porPrecinto.isEmpty()) {
+            return "A1";
+        }
+        if (porOrigen != null && porOrigen.isEmpty()) {
+            return "A2";
+        }
+        return null;
+    }
+
     // ---------------------------------------------------------------- respuestas
 
     /** Lo que la página necesita para dibujarse: usuarios, sesión actual y vista del CU. */
@@ -195,41 +266,6 @@ public class ServidorWeb {
         return datos;
     }
 
-    /** Aplica los filtros del gestor. Sin resultados informa qué flujo alternativo ocurrió. */
-    private Map<String, Object> filtrar(String precinto, String cmOrigen) {
-        List<Map<String, Object>> bolsines = null;
-        String flujoAlternativo = null;
-
-        if (precinto != null && !precinto.isBlank()) {
-            List<String[]> porPrecinto;
-            try {
-                porPrecinto = gestor.tomarFiltroPrecinto(Integer.parseInt(precinto.trim()));
-            } catch (NumberFormatException e) {
-                porPrecinto = List.of();
-            }
-            bolsines = PantallaRecepcionWeb.bolsines(porPrecinto);
-            if (bolsines.isEmpty()) {
-                flujoAlternativo = "A1";
-            }
-        }
-        if (cmOrigen != null && !cmOrigen.isBlank()) {
-            List<Map<String, Object>> porOrigen = PantallaRecepcionWeb.bolsines(gestor.tomarFiltroCMOrigen(cmOrigen));
-            if (porOrigen.isEmpty() && flujoAlternativo == null) {
-                flujoAlternativo = "A2";
-            }
-            if (bolsines == null) {
-                bolsines = porOrigen;
-            } else {
-                bolsines.retainAll(porOrigen);   // cumplen los dos filtros
-            }
-        }
-
-        Map<String, Object> respuesta = new LinkedHashMap<>();
-        respuesta.put("bolsines", bolsines == null ? pantalla.getVista().get("bolsines") : bolsines);
-        respuesta.put("flujoAlternativo", flujoAlternativo);
-        return respuesta;
-    }
-
     private List<Map<String, Object>> emails(int desde) {
         List<Map<String, Object>> emails = new ArrayList<>();
         List<String[]> enviados = servidorCorreo.getEmailsEnviados();
@@ -243,6 +279,8 @@ public class ServidorWeb {
         return emails;
     }
 
+    // ---------------------------------------------------------------- consulta de estados
+
     /**
      * No es parte del CU 28: lee todo de la base de datos para verificar cómo quedaron
      * guardados los estados y sus historiales (con fecha y responsable).
@@ -250,46 +288,57 @@ public class ServidorWeb {
     private List<Map<String, Object>> consultarEstados() {
         List<Map<String, Object>> bolsines = new ArrayList<>();
         for (Bolsin bolsin : baseDeDatos.buscarBolsines()) {
-            List<Map<String, Object>> cambiosBolsin = new ArrayList<>();
-            for (CambioEstadoBolsin cambio : bolsin.getCambioEstados()) {
-                cambiosBolsin.add(cambio(cambio.getFechaHoraInicio(), cambio.getFechaHoraFin(),
-                        cambio.getEstado().getNombre(), cambio.getResponsable()));
-            }
-            List<Map<String, Object>> remitos = new ArrayList<>();
-            for (Remito remito : bolsin.getRemitos()) {
-                List<Map<String, Object>> documentaciones = new ArrayList<>();
-                for (DetalleRemito detalle : remito.getDetallesRemito()) {
-                    Documentacion documentacion = detalle.getDocumentacion();
-                    List<Map<String, Object>> cambiosDocumentacion = new ArrayList<>();
-                    for (CambioEstadoDocumentacion cambio : documentacion.getCambioEstadoDocumentacion()) {
-                        cambiosDocumentacion.add(cambio(cambio.getFechaHoraInicio(), cambio.getFechaHoraFin(),
-                                cambio.getEstado().getNombre(), cambio.getResponsable()));
-                    }
-                    Map<String, Object> item = new LinkedHashMap<>();
-                    item.put("numero", documentacion.getNumero());
-                    item.put("asunto", documentacion.getAsunto());
-                    item.put("tipo", documentacion.getTipoDocumentacion());
-                    item.put("estado", documentacion.getEstadoActual().getNombre());
-                    item.put("cambios", cambiosDocumentacion);
-                    documentaciones.add(item);
-                }
-                Map<String, Object> item = new LinkedHashMap<>();
-                item.put("numero", remito.getNumero());
-                item.put("estado", remito.getEstadoActual().getNombre());
-                item.put("documentacion", documentaciones);
-                remitos.add(item);
-            }
-            Map<String, Object> item = new LinkedHashMap<>();
-            item.put("numero", bolsin.getNumeroBolsin());
-            item.put("cmOrigen", bolsin.getCMOrigen());
-            item.put("cmDestino", bolsin.getDestino().getNombre());
-            item.put("precinto", bolsin.getNumPrecinto());
-            item.put("estado", bolsin.getEstadoActual().getNombre());
-            item.put("cambios", cambiosBolsin);
-            item.put("remitos", remitos);
-            bolsines.add(item);
+            bolsines.add(vistaDeBolsin(bolsin));
         }
         return bolsines;
+    }
+
+    private Map<String, Object> vistaDeBolsin(Bolsin bolsin) {
+        List<Map<String, Object>> cambios = new ArrayList<>();
+        for (CambioEstadoBolsin cambio : bolsin.getCambioEstados()) {
+            cambios.add(cambio(cambio.getFechaHoraInicio(), cambio.getFechaHoraFin(),
+                    cambio.getEstado().getNombre(), cambio.getResponsable()));
+        }
+        List<Map<String, Object>> remitos = new ArrayList<>();
+        for (Remito remito : bolsin.getRemitos()) {
+            remitos.add(vistaDeRemito(remito));
+        }
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("numero", bolsin.getNumeroBolsin());
+        item.put("cmOrigen", bolsin.getCMOrigen());
+        item.put("cmDestino", bolsin.getDestino().getNombre());
+        item.put("precinto", bolsin.getNumPrecinto());
+        item.put("estado", bolsin.getEstadoActual().getNombre());
+        item.put("cambios", cambios);
+        item.put("remitos", remitos);
+        return item;
+    }
+
+    private Map<String, Object> vistaDeRemito(Remito remito) {
+        List<Map<String, Object>> documentaciones = new ArrayList<>();
+        for (DetalleRemito detalle : remito.getDetallesRemito()) {
+            documentaciones.add(vistaDeDocumentacion(detalle.getDocumentacion()));
+        }
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("numero", remito.getNumero());
+        item.put("estado", remito.getEstadoActual().getNombre());
+        item.put("documentacion", documentaciones);
+        return item;
+    }
+
+    private Map<String, Object> vistaDeDocumentacion(Documentacion documentacion) {
+        List<Map<String, Object>> cambios = new ArrayList<>();
+        for (CambioEstadoDocumentacion cambio : documentacion.getCambioEstadoDocumentacion()) {
+            cambios.add(cambio(cambio.getFechaHoraInicio(), cambio.getFechaHoraFin(),
+                    cambio.getEstado().getNombre(), cambio.getResponsable()));
+        }
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("numero", documentacion.getNumero());
+        item.put("asunto", documentacion.getAsunto());
+        item.put("tipo", documentacion.getTipoDocumentacion());
+        item.put("estado", documentacion.getEstadoActual().getNombre());
+        item.put("cambios", cambios);
+        return item;
     }
 
     private Map<String, Object> cambio(LocalDateTime inicio, LocalDateTime fin, String estado, Empleado responsable) {
@@ -319,6 +368,10 @@ public class ServidorWeb {
         return parametros;
     }
 
+    private boolean tieneValor(String texto) {
+        return texto != null && !texto.isBlank();
+    }
+
     private int entero(Map<String, String> parametros, String nombre) {
         try {
             return Integer.parseInt(parametros.get(nombre).trim());
@@ -330,7 +383,7 @@ public class ServidorWeb {
     /** "5001,5002" -> {5001, 5002}. */
     private Set<Integer> numeros(String texto) {
         Set<Integer> numeros = new LinkedHashSet<>();
-        if (texto != null && !texto.isBlank()) {
+        if (tieneValor(texto)) {
             for (String parte : texto.split(",")) {
                 try {
                     numeros.add(Integer.valueOf(parte.trim()));
@@ -343,23 +396,48 @@ public class ServidorWeb {
     }
 
     private void entregarArchivo(HttpExchange pedido, String ruta) throws IOException {
-        String archivo = ruta.equals("/") ? "/index.html" : ruta;
-        InputStream contenido = archivo.contains("..") ? null : ServidorWeb.class.getResourceAsStream("/static" + archivo);
+        String recurso = recursoDeLaPagina(ruta);
+        InputStream contenido = recurso == null ? null : ServidorWeb.class.getResourceAsStream(recurso);
         if (contenido == null) {
             responder(pedido, 404, "text/plain; charset=utf-8", "No encontrado".getBytes(StandardCharsets.UTF_8));
             return;
         }
-        String tipo = archivo.endsWith(".html") ? "text/html; charset=utf-8"
-                : archivo.endsWith(".css") ? "text/css; charset=utf-8"
-                : archivo.endsWith(".js") ? "text/javascript; charset=utf-8"
-                : "application/octet-stream";
         try (contenido) {
-            responder(pedido, 200, tipo, contenido.readAllBytes());
+            responder(pedido, 200, tipoDeContenido(recurso), contenido.readAllBytes());
         }
     }
 
+    /** La ruta del archivo dentro de /static, o null si el pedido intenta salir de esa carpeta (por ejemplo con ".."). */
+    private String recursoDeLaPagina(String ruta) {
+        String archivo = ruta.equals("/") ? "/index.html" : ruta;
+        try {
+            String normalizada = URI.create("/static" + archivo).normalize().getPath();
+            return normalizada != null && normalizada.startsWith("/static/") ? normalizada : null;
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    private String tipoDeContenido(String archivo) {
+        if (archivo.endsWith(".html")) {
+            return "text/html; charset=utf-8";
+        }
+        if (archivo.endsWith(".css")) {
+            return "text/css; charset=utf-8";
+        }
+        if (archivo.endsWith(".js")) {
+            return "text/javascript; charset=utf-8";
+        }
+        return "application/octet-stream";
+    }
+
+    private void responderJson(HttpExchange pedido, int codigo, Object cuerpo) throws IOException {
+        responder(pedido, codigo, "application/json; charset=utf-8",
+                Json.escribir(cuerpo).getBytes(StandardCharsets.UTF_8));
+    }
+
     private void responder(HttpExchange pedido, int codigo, String tipo, byte[] cuerpo) throws IOException {
-        pedido.getResponseHeaders().set("Content-Type", tipo.startsWith("application/json") ? tipo + "; charset=utf-8" : tipo);
+        pedido.getResponseHeaders().set("Content-Type", tipo);
         pedido.getResponseHeaders().set("Cache-Control", "no-store");
         pedido.sendResponseHeaders(codigo, cuerpo.length);
         pedido.getResponseBody().write(cuerpo);

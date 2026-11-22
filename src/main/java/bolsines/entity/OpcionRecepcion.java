@@ -29,6 +29,16 @@ public enum OpcionRecepcion {
         return this != CONTENIDO_IGUAL;
     }
 
+    /**
+     * Guarda [comisión destino igual CMC] de la máquina de estados (alternativo A5): redirigir
+     * documentación a otra área solo corresponde cuando la CM destino es la Comisión Médica
+     * Central. Es el único lugar donde está escrita esta regla; la consultan el gestor, el
+     * estado Enviado y las dos pantallas.
+     */
+    public boolean estaDisponiblePara(ComisionMedica destino) {
+        return this != DOCUMENTACION_PARA_REDIRIGIR || destino.sosCentral();
+    }
+
     public static OpcionRecepcion desdeNumero(int numero) {
         for (OpcionRecepcion opcion : values()) {
             if (opcion.numero == numero) {

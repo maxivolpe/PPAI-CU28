@@ -5,12 +5,14 @@ import bolsines.entity.estado.documentacion.EstadoDocumentacion;
 import bolsines.entity.estado.remito.EstadoRemito;
 
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * PATRÓN STATE y persistencia: los estados concretos no tienen datos propios, así que en
  * la base se guarda solo su nombre (columna "estado"). Al leer, esta clase reconstruye el
  * objeto estado concreto que corresponde a ese nombre. Es el único lugar del sistema que
- * conoce la lista completa de estados concretos.
+ * conoce la lista completa de estados concretos: agregar un estado es agregar su clase y
+ * sumarla a la lista que corresponda.
  */
 final class MapeoEstados {
 
@@ -44,29 +46,24 @@ final class MapeoEstados {
     }
 
     static EstadoBolsin estadoBolsin(String nombre) {
-        for (EstadoBolsin estado : ESTADOS_BOLSIN) {
-            if (estado.getNombre().equals(nombre)) {
-                return estado;
-            }
-        }
-        throw new IllegalArgumentException("Estado de bolsín desconocido: " + nombre);
+        return buscarPorNombre(ESTADOS_BOLSIN, EstadoBolsin::getNombre, nombre, "bolsín");
     }
 
     static EstadoRemito estadoRemito(String nombre) {
-        for (EstadoRemito estado : ESTADOS_REMITO) {
-            if (estado.getNombre().equals(nombre)) {
-                return estado;
-            }
-        }
-        throw new IllegalArgumentException("Estado de remito desconocido: " + nombre);
+        return buscarPorNombre(ESTADOS_REMITO, EstadoRemito::getNombre, nombre, "remito");
     }
 
     static EstadoDocumentacion estadoDocumentacion(String nombre) {
-        for (EstadoDocumentacion estado : ESTADOS_DOCUMENTACION) {
-            if (estado.getNombre().equals(nombre)) {
+        return buscarPorNombre(ESTADOS_DOCUMENTACION, EstadoDocumentacion::getNombre, nombre, "documentación");
+    }
+
+    private static <E> E buscarPorNombre(List<E> estados, Function<E, String> nombreDe, String nombre,
+                                         String entidad) {
+        for (E estado : estados) {
+            if (nombreDe.apply(estado).equals(nombre)) {
                 return estado;
             }
         }
-        throw new IllegalArgumentException("Estado de documentación desconocido: " + nombre);
+        throw new IllegalArgumentException("Estado de " + entidad + " desconocido: " + nombre);
     }
 }

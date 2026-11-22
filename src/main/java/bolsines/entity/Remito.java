@@ -5,6 +5,7 @@ import bolsines.entity.estado.remito.EstadoRemito;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -87,7 +88,8 @@ public class Remito {
         return estadoActual;
     }
 
+    /** Vista de solo lectura: los detalles se agregan con {@link #agregarDetalle(DetalleRemito)}. */
     public List<DetalleRemito> getDetallesRemito() {
-        return detallesRemito;
+        return Collections.unmodifiableList(detallesRemito);
     }
 }

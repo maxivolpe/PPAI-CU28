@@ -1,5 +1,6 @@
 package bolsines.boundary;
 
+import bolsines.entity.ComisionMedica;
 import bolsines.entity.OpcionRecepcion;
 
 import java.util.ArrayList;
@@ -94,14 +95,14 @@ public class PantallaRecepcionWeb implements PantallaRecepcion {
     }
 
     @Override
-    public void solicitarOpcRecepcion(boolean cmEsCentral) {
+    public void solicitarOpcRecepcion(ComisionMedica comisionMedica) {
         List<Map<String, Object>> opciones = new ArrayList<>();
         for (OpcionRecepcion opcion : OpcionRecepcion.values()) {
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("numero", opcion.getNumero());
             item.put("descripcion", opcion.getDescripcion());
             item.put("requiereSeleccion", opcion.requiereSeleccionDeDocumentacion());
-            item.put("disponible", opcion != OpcionRecepcion.DOCUMENTACION_PARA_REDIRIGIR || cmEsCentral);
+            item.put("disponible", opcion.estaDisponiblePara(comisionMedica));
             opciones.add(item);
         }
         vista.put("opciones", opciones);

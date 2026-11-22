@@ -5,6 +5,7 @@ import bolsines.entity.estado.bolsin.EstadoBolsin;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -104,6 +105,16 @@ public class Bolsin {
         return origen.getNombre();
     }
 
+    /** Filtro del paso 4 (A1): el bolsín responde si su precinto es el buscado. */
+    public boolean esDePrecinto(int numeroPrecintoBuscado) {
+        return numeroPrecinto == numeroPrecintoBuscado;
+    }
+
+    /** Filtro del paso 4 (A2): el nombre de su CM de origen contiene el texto, sin distinguir mayúsculas. */
+    public boolean esDeCMOrigen(String parteDelNombre) {
+        return origen.getNombre().toLowerCase().contains(parteDelNombre.trim().toLowerCase());
+    }
+
     public int getNumPrecinto() {
         return numeroPrecinto;
     }
@@ -137,15 +148,17 @@ public class Bolsin {
         return destino;
     }
 
+    /** Vista de solo lectura: los remitos se agregan con {@link #agregarRemito(Remito)}. */
     public List<Remito> getRemitos() {
-        return remitos;
+        return Collections.unmodifiableList(remitos);
     }
 
     public EstadoBolsin getEstadoActual() {
         return estadoActual;
     }
 
+    /** Vista de solo lectura: el historial crece con {@link #agregarCambioEstado(CambioEstadoBolsin)}. */
     public List<CambioEstadoBolsin> getCambioEstados() {
-        return cambioEstados;
+        return Collections.unmodifiableList(cambioEstados);
     }
 }

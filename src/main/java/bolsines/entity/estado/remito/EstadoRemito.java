@@ -16,6 +16,8 @@ import java.util.Set;
  * Por defecto todo evento es "transición no permitida"; cada estado concreto redefine solo
  * los eventos que salen de él en la máquina de estados de Remito. Para el CU 28 el único
  * evento es la recepción, y solo "En Bolsín Enviado" la admite.
+ *
+ * Los estados no guardan datos propios: dos estados son iguales cuando son del mismo estado concreto.
  */
 public abstract class EstadoRemito {
 
@@ -25,6 +27,26 @@ public abstract class EstadoRemito {
     public void registrarBolsinRecibido(Remito remito, List<DetalleRemito> detalles,
                                         LocalDateTime fechaHoraActual, Empleado responsable,
                                         OpcionRecepcion opcion, Set<Integer> documentacionMarcada) {
-        throw new TransicionNoPermitidaException("registrarBolsinRecibido", getNombre());
+        throw noPermitida("registrarBolsinRecibido");
+    }
+
+    /** La excepción por defecto de todo evento sin transición definida desde este estado. */
+    protected final TransicionNoPermitidaException noPermitida(String evento) {
+        return new TransicionNoPermitidaException(evento, getNombre());
+    }
+
+    @Override
+    public final boolean equals(Object otro) {
+        return otro != null && getClass() == otro.getClass();
+    }
+
+    @Override
+    public final int hashCode() {
+        return getClass().hashCode();
+    }
+
+    @Override
+    public final String toString() {
+        return getNombre();
     }
 }

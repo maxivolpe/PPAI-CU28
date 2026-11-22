@@ -217,24 +217,16 @@ public class BaseDeDatos {
      * Guarda en UNA transacción el resultado de la recepción: estado e historial del bolsín,
      * estado de cada remito, y estado e historial de cada documentación. Si algo falla no
      * queda nada a medias.
+     *
+     * El historial no se reescribe: en la base se hace lo mismo que hizo el patrón State en
+     * memoria, se cierra el cambio de estado vigente y se agrega el nuevo.
      */
     public void guardarRecepcion(Bolsin bolsin) {
         try (Connection conexion = abrirConexion()) {
             conexion.setAutoCommit(false);
             try {
-                actualizar(conexion, "UPDATE bolsin SET estado = ? WHERE numero_bolsin = ?",
-                        bolsin.getEstadoActual().getNombre(), bolsin.getNumeroBolsin());
-                actualizar(conexion, "DELETE FROM cambio_estado_bolsin WHERE numero_bolsin = ?",
-                        bolsin.getNumeroBolsin());
-                for (CambioEstadoBolsin cambio : bolsin.getCambioEstados()) {
-                    actualizar(conexion, "INSERT INTO cambio_estado_bolsin "
-                                    + "(numero_bolsin, fecha_hora_inicio, fecha_hora_fin, estado, responsable_email) "
-                                    + "VALUES (?, ?, ?, ?, ?)",
-                            bolsin.getNumeroBolsin(), texto(cambio.getFechaHoraInicio()),
-                            texto(cambio.getFechaHoraFin()), cambio.getEstado().getNombre(),
-                            cambio.getResponsable().getEmail());
-                }
-
+                actualizarEstadoDelBolsin(conexion, bolsin);
+                registrarNuevoCambioDelBolsin(conexion, bolsin);
                 for (Remito remito : bolsin.getRemitos()) {
                     actualizar(conexion, "UPDATE remito SET estado = ? WHERE numero = ?",
                             remito.getEstadoActual().getNombre(), remito.getNumero());
@@ -252,25 +244,83 @@ public class BaseDeDatos {
         }
     }
 
+    /**
+     * Cambia el estado del bolsín solo si en la base sigue en el estado en que se leyó. Si otro
+     * usuario lo recibió mientras tanto, la recepción se rechaza en lugar de pisar la suya.
+     */
+    private void actualizarEstadoDelBolsin(Connection conexion, Bolsin bolsin) throws SQLException {
+        int filasActualizadas = actualizar(conexion,
+                "UPDATE bolsin SET estado = ? WHERE numero_bolsin = ? AND estado = ?",
+                bolsin.getEstadoActual().getNombre(), bolsin.getNumeroBolsin(), estadoAlLeerlo(bolsin));
+        if (filasActualizadas != 1) {
+            throw new IllegalStateException("El bolsín " + bolsin.getNumeroBolsin()
+                    + " fue modificado por otro usuario mientras se registraba la recepción. "
+                    + "Vuelva a iniciar el caso de uso.");
+        }
+    }
+
+    /** El estado en que estaba el bolsín al leerlo de la base: el del último cambio de estado ya cerrado. */
+    private String estadoAlLeerlo(Bolsin bolsin) {
+        List<CambioEstadoBolsin> historial = bolsin.getCambioEstados();
+        for (int i = historial.size() - 1; i >= 0; i--) {
+            if (!historial.get(i).sosActual()) {
+                return historial.get(i).getEstado().getNombre();
+            }
+        }
+        return bolsin.getEstadoActual().getNombre();
+    }
+
+    /** Cierra en la base el cambio de estado vigente del bolsín y agrega el que creó el estado Enviado. */
+    private void registrarNuevoCambioDelBolsin(Connection conexion, Bolsin bolsin) throws SQLException {
+        CambioEstadoBolsin nuevo = bolsin.buscarCambioEstadoActual();
+        actualizar(conexion, "UPDATE cambio_estado_bolsin SET fecha_hora_fin = ? "
+                        + "WHERE numero_bolsin = ? AND fecha_hora_fin IS NULL",
+                texto(nuevo.getFechaHoraInicio()), bolsin.getNumeroBolsin());
+        actualizar(conexion, "INSERT INTO cambio_estado_bolsin "
+                        + "(numero_bolsin, fecha_hora_inicio, fecha_hora_fin, estado, responsable_email) "
+                        + "VALUES (?, ?, NULL, ?, ?)",
+                bolsin.getNumeroBolsin(), texto(nuevo.getFechaHoraInicio()), nuevo.getEstado().getNombre(),
+                nuevo.getResponsable().getEmail());
+    }
+
+    /** Estado de la documentación; en su historial, se cierra el vigente y se agrega el nuevo. */
     private void guardarDocumentacion(Connection conexion, Documentacion documentacion) throws SQLException {
         actualizar(conexion, "UPDATE documentacion SET estado = ? WHERE numero = ?",
                 documentacion.getEstadoActual().getNombre(), documentacion.getNumero());
-        actualizar(conexion, "DELETE FROM cambio_estado_documentacion WHERE numero_documentacion = ?",
-                documentacion.getNumero());
+        CambioEstadoDocumentacion nuevo = cambioVigente(documentacion);
+        actualizar(conexion, "UPDATE cambio_estado_documentacion SET fecha_hora_fin = ? "
+                        + "WHERE numero_documentacion = ? AND fecha_hora_fin IS NULL",
+                texto(nuevo.getFechaHoraInicio()), documentacion.getNumero());
+        actualizar(conexion, "INSERT INTO cambio_estado_documentacion "
+                        + "(numero_documentacion, fecha_hora_inicio, fecha_hora_fin, estado, responsable_email) "
+                        + "VALUES (?, ?, NULL, ?, ?)",
+                documentacion.getNumero(), texto(nuevo.getFechaHoraInicio()), nuevo.getEstado().getNombre(),
+                nuevo.getResponsable().getEmail());
+    }
+
+    /** El cambio de estado que el patrón State acaba de agregar: el único sin fecha y hora de fin. */
+    private CambioEstadoDocumentacion cambioVigente(Documentacion documentacion) {
         for (CambioEstadoDocumentacion cambio : documentacion.getCambioEstadoDocumentacion()) {
-            actualizar(conexion, "INSERT INTO cambio_estado_documentacion "
-                            + "(numero_documentacion, fecha_hora_inicio, fecha_hora_fin, estado, responsable_email) "
-                            + "VALUES (?, ?, ?, ?, ?)",
-                    documentacion.getNumero(), texto(cambio.getFechaHoraInicio()),
-                    texto(cambio.getFechaHoraFin()), cambio.getEstado().getNombre(),
-                    cambio.getResponsable().getEmail());
+            if (cambio.sosActual()) {
+                return cambio;
+            }
         }
+        throw new IllegalStateException(
+                "La documentación " + documentacion.getNumero() + " no tiene un cambio de estado vigente.");
     }
 
     // ---------------------------------------------------------------- utilidades JDBC
 
     private Connection abrirConexion() throws SQLException {
-        return DriverManager.getConnection(url);
+        Connection conexion = DriverManager.getConnection(url);
+        try (Statement sentencia = conexion.createStatement()) {
+            // SQLite solo controla las REFERENCES del esquema si se lo pide en cada conexión.
+            sentencia.execute("PRAGMA foreign_keys = ON");
+        } catch (SQLException e) {
+            conexion.close();
+            throw e;
+        }
+        return conexion;
     }
 
     private void ejecutarSentencias(Connection conexion, String sentencias) throws SQLException {
@@ -283,12 +333,13 @@ public class BaseDeDatos {
         }
     }
 
-    private void actualizar(Connection conexion, String sql, Object... parametros) throws SQLException {
+    /** @return la cantidad de filas modificadas. */
+    private int actualizar(Connection conexion, String sql, Object... parametros) throws SQLException {
         try (PreparedStatement sentencia = conexion.prepareStatement(sql)) {
             for (int i = 0; i < parametros.length; i++) {
                 sentencia.setObject(i + 1, parametros[i]);
             }
-            sentencia.executeUpdate();
+            return sentencia.executeUpdate();
         }
     }
 

@@ -17,7 +17,8 @@ import java.util.List;
  * diagrama, y cualquier otro evento queda rechazado sin escribir un solo if.
  *
  * Los estados no guardan datos propios (el contexto llega por parámetro), por eso una
- * misma instancia puede compartirse entre muchas documentaciones.
+ * misma instancia puede compartirse entre muchas documentaciones. Por lo mismo, dos
+ * estados son iguales cuando son del mismo estado concreto.
  */
 public abstract class EstadoDocumentacion {
 
@@ -26,11 +27,11 @@ public abstract class EstadoDocumentacion {
 
     // ---------------------------------------------------------------- consultas sobre el estado
 
-    public boolean esNoRecibida() {
-        return false;
-    }
-
-    public boolean esRecibidaYRechazada() {
+    /**
+     * Consulta polimórfica: verdadero si, estando la documentación en este estado, el remito
+     * que la contiene no puede quedar "Recibido y Aceptado" completo (no llegó o fue rechazada).
+     */
+    public boolean dejaRemitoIncompleto() {
         return false;
     }
 
@@ -39,25 +40,25 @@ public abstract class EstadoDocumentacion {
     public void registrarBolsinRecibido(Documentacion documentacion,
                                         List<CambioEstadoDocumentacion> historialCambioEstado,
                                         LocalDateTime fechaHoraActual, Empleado responsable) {
-        throw new TransicionNoPermitidaException("registrarBolsinRecibido", getNombre());
+        throw noPermitida("registrarBolsinRecibido");
     }
 
     public void registrarDocumentacionNoRecibida(Documentacion documentacion,
                                                  List<CambioEstadoDocumentacion> historialCambioEstado,
                                                  LocalDateTime fechaHoraActual, Empleado responsable) {
-        throw new TransicionNoPermitidaException("registrarDocumentacionNoRecibida", getNombre());
+        throw noPermitida("registrarDocumentacionNoRecibida");
     }
 
     public void registrarRechazoDeDocumentacion(Documentacion documentacion,
                                                 List<CambioEstadoDocumentacion> historialCambioEstado,
                                                 LocalDateTime fechaHoraActual, Empleado responsable) {
-        throw new TransicionNoPermitidaException("registrarRechazoDeDocumentacion", getNombre());
+        throw noPermitida("registrarRechazoDeDocumentacion");
     }
 
     public void registrarDocumentacionParaRedirigir(Documentacion documentacion,
                                                     List<CambioEstadoDocumentacion> historialCambioEstado,
                                                     LocalDateTime fechaHoraActual, Empleado responsable) {
-        throw new TransicionNoPermitidaException("registrarDocumentacionParaRedirigir", getNombre());
+        throw noPermitida("registrarDocumentacionParaRedirigir");
     }
 
     // ---------------------------------------------------------------- eventos de otros casos de uso
@@ -67,34 +68,56 @@ public abstract class EstadoDocumentacion {
 
     /** Recepción por el área interna de la CMC (sale de "Para Redirigir"). */
     public void registrarRecepcionDeDocumentacion() {
-        throw new TransicionNoPermitidaException("registrarRecepcionDeDocumentacion", getNombre());
+        throw noPermitida("registrarRecepcionDeDocumentacion");
     }
 
     public void remitar() {
-        throw new TransicionNoPermitidaException("remitar", getNombre());
+        throw noPermitida("remitar");
     }
 
     public void cancelarRemito() {
-        throw new TransicionNoPermitidaException("cancelarRemito", getNombre());
+        throw noPermitida("cancelarRemito");
     }
 
     public void modificarBolsin() {
-        throw new TransicionNoPermitidaException("modificarBolsin", getNombre());
+        throw noPermitida("modificarBolsin");
     }
 
     public void actualizarBolsin() {
-        throw new TransicionNoPermitidaException("actualizarBolsin", getNombre());
+        throw noPermitida("actualizarBolsin");
     }
 
     public void registrarRetiroBolsin() {
-        throw new TransicionNoPermitidaException("registrarRetiroBolsin", getNombre());
+        throw noPermitida("registrarRetiroBolsin");
     }
 
     public void registrarDocumentacionParaReenvio() {
-        throw new TransicionNoPermitidaException("registrarDocumentacionParaReenvio", getNombre());
+        throw noPermitida("registrarDocumentacionParaReenvio");
     }
 
     public void darDeBaja() {
-        throw new TransicionNoPermitidaException("darDeBaja", getNombre());
+        throw noPermitida("darDeBaja");
+    }
+
+    // ---------------------------------------------------------------- utilidades
+
+    /** La excepción por defecto de todo evento sin transición definida desde este estado. */
+    protected final TransicionNoPermitidaException noPermitida(String evento) {
+        return new TransicionNoPermitidaException(evento, getNombre());
+    }
+
+    @Override
+    public final boolean equals(Object otro) {
+        return otro != null && getClass() == otro.getClass();
+    }
+
+    @Override
+    public final int hashCode() {
+        return getClass().hashCode();
+    }
+
+    @Override
+    public final String toString() {
+        return getNombre();
     }
 }

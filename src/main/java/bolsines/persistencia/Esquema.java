@@ -1,6 +1,6 @@
 package bolsines.persistencia;
 
-/** Sentencias SQL para crear las tablas y cargar los datos de prueba (separadas por ';'). */
+/** Sentencias SQL para crear las tablas, sus índices y cargar los datos de prueba (separadas por ';'). */
 final class Esquema {
 
     private Esquema() {
@@ -47,7 +47,11 @@ final class Esquema {
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 numero_documentacion INTEGER NOT NULL REFERENCES documentacion(numero),
                 fecha_hora_inicio TEXT NOT NULL, fecha_hora_fin TEXT, estado TEXT NOT NULL,
-                responsable_email TEXT NOT NULL REFERENCES empleado(email))
+                responsable_email TEXT NOT NULL REFERENCES empleado(email));
+            CREATE INDEX IF NOT EXISTS ix_remito_bolsin ON remito (numero_bolsin);
+            CREATE INDEX IF NOT EXISTS ix_detalle_remito_remito ON detalle_remito (numero_remito);
+            CREATE INDEX IF NOT EXISTS ix_cambio_estado_bolsin ON cambio_estado_bolsin (numero_bolsin);
+            CREATE INDEX IF NOT EXISTS ix_cambio_estado_documentacion ON cambio_estado_documentacion (numero_documentacion)
             """;
 
     /**

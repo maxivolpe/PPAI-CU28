@@ -14,6 +14,7 @@ import bolsines.entity.Sesion;
 import bolsines.entity.Usuario;
 import bolsines.persistencia.BaseDeDatos;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -36,6 +37,8 @@ public class GestorRecepcion {
     private final BaseDeDatos baseDeDatos;
     private final Sesion sesion;
     private final InterfazServidorCorreo servidorCorreo;
+    /** De dónde sale la fecha y hora de la recepción. Los tests usan un reloj fijo. */
+    private final Clock reloj;
     private PantallaRecepcion pantalla;
 
     private Usuario usuarioActual;
@@ -50,9 +53,15 @@ public class GestorRecepcion {
     private CambioEstadoBolsin cambioEstadoActual;
 
     public GestorRecepcion(BaseDeDatos baseDeDatos, Sesion sesion, InterfazServidorCorreo servidorCorreo) {
+        this(baseDeDatos, sesion, servidorCorreo, Clock.systemDefaultZone());
+    }
+
+    public GestorRecepcion(BaseDeDatos baseDeDatos, Sesion sesion, InterfazServidorCorreo servidorCorreo,
+                           Clock reloj) {
         this.baseDeDatos = baseDeDatos;
         this.sesion = sesion;
         this.servidorCorreo = servidorCorreo;
+        this.reloj = reloj;
     }
 
     // ---------------------------------------------------------------- pasos 1 a 4
@@ -97,24 +106,16 @@ public class GestorRecepcion {
 
     /** Filtro por número de precinto. Lista vacía = flujo alternativo A1. */
     public List<String[]> tomarFiltroPrecinto(int numeroPrecinto) {
-        List<Bolsin> encontrados = new ArrayList<>();
-        for (Bolsin bolsin : bolsinesDelCMDestinoEnviados) {
-            if (bolsin.getNumPrecinto() == numeroPrecinto) {
-                encontrados.add(bolsin);
-            }
-        }
-        return listar(encontrados);
+        return listar(bolsinesDelCMDestinoEnviados.stream()
+                .filter(bolsin -> bolsin.esDePrecinto(numeroPrecinto))
+                .toList());
     }
 
     /** Filtro por CM de origen (parte del nombre). Lista vacía = flujo alternativo A2. */
     public List<String[]> tomarFiltroCMOrigen(String nombreCMOrigen) {
-        List<Bolsin> encontrados = new ArrayList<>();
-        for (Bolsin bolsin : bolsinesDelCMDestinoEnviados) {
-            if (bolsin.getCMOrigen().toLowerCase().contains(nombreCMOrigen.trim().toLowerCase())) {
-                encontrados.add(bolsin);
-            }
-        }
-        return listar(encontrados);
+        return listar(bolsinesDelCMDestinoEnviados.stream()
+                .filter(bolsin -> bolsin.esDeCMOrigen(nombreCMOrigen))
+                .toList());
     }
 
     /** Por cada bolsín: {número de bolsín, CM origen, número de precinto}. */
@@ -132,17 +133,12 @@ public class GestorRecepcion {
     // ---------------------------------------------------------------- pasos 5 a 7
 
     public void tomarSeleccionBolsin(int numeroBolsin) {
-        bolsinSeleccionado = null;
-        for (Bolsin bolsin : bolsinesDelCMDestinoEnviados) {
-            if (bolsin.getNumeroBolsin() == numeroBolsin) {
-                bolsinSeleccionado = bolsin;
-            }
-        }
-        if (bolsinSeleccionado == null) {
-            throw new IllegalArgumentException("El bolsín " + numeroBolsin + " no está en el listado.");
-        }
+        bolsinSeleccionado = bolsinesDelCMDestinoEnviados.stream()
+                .filter(bolsin -> bolsin.getNumeroBolsin() == numeroBolsin)
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("El bolsín " + numeroBolsin + " no está en el listado."));
         buscarInformacionBolsin();
-        pantalla.solicitarOpcRecepcion(cmEmpleado.sosCentral());
+        pantalla.solicitarOpcRecepcion(cmEmpleado);
     }
 
     private void buscarInformacionBolsin() {
@@ -165,20 +161,38 @@ public class GestorRecepcion {
         pantalla.solicitarConfirmacion(opcion, this.documentacionMarcada);
     }
 
+    /** Las reglas de la opción elegida, una por método. Si alguna falla no se cambia nada. */
     private void validarOpcRecepcion(OpcionRecepcion opcion, Set<Integer> marcada) {
         if (!opcion.requiereSeleccionDeDocumentacion()) {
-            if (!marcada.isEmpty()) {
-                throw new IllegalArgumentException("La opción 1 no lleva documentación seleccionada.");
-            }
+            exigirSinDocumentacionMarcada(marcada);
             return;
         }
-        if (opcion == OpcionRecepcion.DOCUMENTACION_PARA_REDIRIGIR && !cmEmpleado.sosCentral()) {
+        exigirOpcionDisponible(opcion);
+        exigirAlMenosUnaDocumentacion(marcada);
+        exigirQuePertenezcanAlBolsin(marcada);
+    }
+
+    private void exigirSinDocumentacionMarcada(Set<Integer> marcada) {
+        if (!marcada.isEmpty()) {
+            throw new IllegalArgumentException("La opción 1 no lleva documentación seleccionada.");
+        }
+    }
+
+    /** Alternativo A5: la regla está escrita una sola vez, en OpcionRecepcion. */
+    private void exigirOpcionDisponible(OpcionRecepcion opcion) {
+        if (!opcion.estaDisponiblePara(cmEmpleado)) {
             throw new IllegalArgumentException(
                     "La opción 4 solo aplica cuando la CM destino es la Comisión Médica Central.");
         }
+    }
+
+    private void exigirAlMenosUnaDocumentacion(Set<Integer> marcada) {
         if (marcada.isEmpty()) {
             throw new IllegalArgumentException("Debe indicar al menos una documentación para esta opción.");
         }
+    }
+
+    private void exigirQuePertenezcanAlBolsin(Set<Integer> marcada) {
         Set<Integer> numerosDelBolsin = new LinkedHashSet<>();
         for (Remito remito : bolsinSeleccionado.getRemitos()) {
             for (DetalleRemito detalle : remito.getDetallesRemito()) {
@@ -196,7 +210,7 @@ public class GestorRecepcion {
         if (!confirma) {
             // Flujo alternativo A6: no se registra nada y se vuelve a pedir la opción.
             pantalla.mostrarMensaje("No se confirmó la selección. Elija nuevamente la opción de recepción.");
-            pantalla.solicitarOpcRecepcion(cmEmpleado.sosCentral());
+            pantalla.solicitarOpcRecepcion(cmEmpleado);
             return;
         }
         fechaHoraActual = getFechaYHoraActual();
@@ -210,7 +224,7 @@ public class GestorRecepcion {
     // ---------------------------------------------------------------- paso 11
 
     private LocalDateTime getFechaYHoraActual() {
-        return LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS);
+        return LocalDateTime.now(reloj).truncatedTo(ChronoUnit.SECONDS);
     }
 
     /**
@@ -229,22 +243,30 @@ public class GestorRecepcion {
 
     /** Inclusión del CU 29: un email a cada CM de origen con la situación de su documentación. */
     private void llamarCasoDeUsoNotificarRecepcionDeBolsin() {
+        String asunto = "Recepción del bolsín " + bolsinSeleccionado.getNumeroBolsin() + " en " + nombreCMEmpleado;
+        for (Map.Entry<ComisionMedica, StringBuilder> entrada : armarCuerpoPorCMOrigen().entrySet()) {
+            servidorCorreo.enviarEmail(entrada.getKey().getEmail(), asunto, entrada.getValue().toString());
+        }
+    }
+
+    /** Un texto por cada CM de origen de los remitos del bolsín. */
+    private Map<ComisionMedica, StringBuilder> armarCuerpoPorCMOrigen() {
         Map<ComisionMedica, StringBuilder> cuerpoPorCMOrigen = new LinkedHashMap<>();
         for (Remito remito : bolsinSeleccionado.getRemitos()) {
             StringBuilder cuerpo = cuerpoPorCMOrigen.computeIfAbsent(remito.getOrigen(), cm -> new StringBuilder());
-            cuerpo.append("  Remito ").append(remito.getNumero())
-                    .append(": ").append(remito.getEstadoActual().getNombre()).append('\n');
-            for (DetalleRemito detalle : remito.getDetallesRemito()) {
-                Documentacion documentacion = detalle.getDocumentacion();
-                cuerpo.append("    Doc. ").append(documentacion.getNumero())
-                        .append(" - ").append(documentacion.getAsunto())
-                        .append(": ").append(documentacion.getEstadoActual().getNombre()).append('\n');
-            }
+            agregarSituacionDelRemito(cuerpo, remito);
         }
-        for (Map.Entry<ComisionMedica, StringBuilder> entrada : cuerpoPorCMOrigen.entrySet()) {
-            servidorCorreo.enviarEmail(entrada.getKey().getEmail(),
-                    "Recepción del bolsín " + bolsinSeleccionado.getNumeroBolsin() + " en " + nombreCMEmpleado,
-                    entrada.getValue().toString());
+        return cuerpoPorCMOrigen;
+    }
+
+    private void agregarSituacionDelRemito(StringBuilder cuerpo, Remito remito) {
+        cuerpo.append("  Remito ").append(remito.getNumero())
+                .append(": ").append(remito.getEstadoActual().getNombre()).append('\n');
+        for (DetalleRemito detalle : remito.getDetallesRemito()) {
+            Documentacion documentacion = detalle.getDocumentacion();
+            cuerpo.append("    Doc. ").append(documentacion.getNumero())
+                    .append(" - ").append(documentacion.getAsunto())
+                    .append(": ").append(documentacion.getEstadoActual().getNombre()).append('\n');
         }
     }
 

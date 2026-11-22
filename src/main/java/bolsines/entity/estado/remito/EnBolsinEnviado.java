@@ -43,7 +43,7 @@ public class EnBolsinEnviado extends EstadoRemito {
      */
     private EstadoRemito crearEstado(List<DetalleRemito> detalles) {
         for (DetalleRemito detalle : detalles) {
-            if (!detalle.tenesDocumentacionAceptada()) {
+            if (detalle.dejaRemitoIncompleto()) {
                 return new RecibidoYAceptadoParcial();
             }
         }

@@ -21,32 +21,42 @@ final class Json {
         } else if (valor instanceof Number || valor instanceof Boolean) {
             json.append(valor);
         } else if (valor instanceof Map<?, ?> mapa) {
-            json.append('{');
-            boolean primero = true;
-            for (Map.Entry<?, ?> entrada : mapa.entrySet()) {
-                if (!primero) {
-                    json.append(',');
-                }
-                primero = false;
-                texto(String.valueOf(entrada.getKey()), json);
-                json.append(':');
-                escribir(entrada.getValue(), json);
-            }
-            json.append('}');
+            objeto(mapa, json);
         } else if (valor instanceof Collection<?> lista) {
-            json.append('[');
-            boolean primero = true;
-            for (Object elemento : lista) {
-                if (!primero) {
-                    json.append(',');
-                }
-                primero = false;
-                escribir(elemento, json);
-            }
-            json.append(']');
+            arreglo(lista, json);
         } else {
             texto(String.valueOf(valor), json);
         }
+    }
+
+    /** {"clave":valor,...} */
+    private static void objeto(Map<?, ?> mapa, StringBuilder json) {
+        json.append('{');
+        boolean primero = true;
+        for (Map.Entry<?, ?> entrada : mapa.entrySet()) {
+            if (!primero) {
+                json.append(',');
+            }
+            primero = false;
+            texto(String.valueOf(entrada.getKey()), json);
+            json.append(':');
+            escribir(entrada.getValue(), json);
+        }
+        json.append('}');
+    }
+
+    /** [valor,...] */
+    private static void arreglo(Collection<?> lista, StringBuilder json) {
+        json.append('[');
+        boolean primero = true;
+        for (Object elemento : lista) {
+            if (!primero) {
+                json.append(',');
+            }
+            primero = false;
+            escribir(elemento, json);
+        }
+        json.append(']');
     }
 
     private static void texto(String texto, StringBuilder json) {

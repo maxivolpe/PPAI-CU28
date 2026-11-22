@@ -1,5 +1,6 @@
 package bolsines.boundary;
 
+import bolsines.entity.ComisionMedica;
 import bolsines.entity.OpcionRecepcion;
 
 import java.util.List;
@@ -24,7 +25,8 @@ public interface PantallaRecepcion {
     void mostrarInfoBolsin(int numeroBolsin, String cmOrigen, int numeroPrecinto,
                            Map<Integer, List<String[]>> informacionBolsin);
 
-    void solicitarOpcRecepcion(boolean cmEsCentral);
+    /** Ofrece las cuatro opciones y marca como no disponibles las que no aplican a esa CM (A5). */
+    void solicitarOpcRecepcion(ComisionMedica comisionMedica);
 
     void solicitarConfirmacion(OpcionRecepcion opcion, Set<Integer> documentacionMarcada);
 
