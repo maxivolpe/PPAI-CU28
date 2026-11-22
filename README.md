@@ -92,9 +92,22 @@ src/main/java/bolsines
 │       └── documentacion/       Estados de Documentación (State)
 ├── persistencia/                SQLite con JDBC puro (BaseDeDatos, Esquema, MapeoEstados)
 └── web/                         Servidor HTTP (ServidorWeb) y JSON mínimo
-src/main/resources/static/       Página web (app.js con React)
+src/main/resources/static/       Página web (React en el navegador, sin Node ni bundler)
+├── index.html                   Carga las librerías de vendor/ y los archivos de js/ en orden
+├── styles.css                   Estilos mobile-first (tokens, base, componentes, vistas)
+├── vendor/                      React y Babel incluidos (la web funciona sin internet)
+└── js/
+    ├── constantes.js            Rutas del servidor, pasos, textos y clasificación de estados
+    ├── utilidades.js            Funciones puras de presentación
+    ├── api.js                   pedir(): único punto de comunicación con el servidor
+    ├── hooks.js                 Hooks propios: useDatos, useServidor, useAviso, ...
+    ├── ui.js                    Piezas reutilizables: Cargando, ErrorCarga, Estado, Aviso, ...
+    ├── vistas/                  Una pantalla por archivo (selección, opciones, confirmación, ...)
+    └── app.js                   Componente raíz (cabecera, pestañas) y arranque de React
 src/test/java/bolsines/          Tests del caso de uso
 ```
+
+Los archivos de `js/` no usan módulos: comparten el ámbito global y `index.html` los carga en el orden de dependencia, porque Babel traduce el JSX en el navegador. Al agregar un archivo nuevo hay que sumarlo a `index.html`.
 
 El proyecto sigue la arquitectura **Boundary – Control – Entity** del diseño: la pantalla (boundary) solo habla con el `GestorRecepcion` (control), y este opera sobre las entidades.
 

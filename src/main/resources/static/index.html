@@ -3,17 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Registro de la recepción de bolsines entre comisiones médicas (CU 28).">
+    <meta name="theme-color" content="#1b5fa7">
     <title>Bolsines - Registrar recepción de bolsín</title>
     <link rel="stylesheet" href="styles.css">
+    <noscript><style>#raiz { display: none; }</style></noscript>
 </head>
 <body>
-    <div id="raiz"></div>
+    <a class="saltar" href="#contenido">Saltar al contenido</a>
+
+    <!-- React reemplaza este contenido cuando termina de cargar y compilar. -->
+    <div id="raiz"><p class="cargando" role="status">Cargando…</p></div>
+    <noscript><p class="cargando">Esta aplicación necesita JavaScript para funcionar.</p></noscript>
 
     <!-- React y Babel están copiados en la carpeta vendor: no hace falta internet ni Node. -->
     <script src="vendor/react.production.min.js"></script>
     <script src="vendor/react-dom.production.min.js"></script>
     <script src="vendor/babel.min.js"></script>
-    <!-- Babel traduce el JSX de app.js en el navegador. -->
-    <script type="text/babel" data-presets="react" src="app.js"></script>
+
+    <!-- Babel traduce el JSX en el navegador. El orden importa: cada archivo usa lo declarado en los anteriores. -->
+    <script type="text/babel" data-presets="react" src="js/constantes.js"></script>
+    <script type="text/babel" data-presets="react" src="js/utilidades.js"></script>
+    <script type="text/babel" data-presets="react" src="js/api.js"></script>
+    <script type="text/babel" data-presets="react" src="js/hooks.js"></script>
+    <script type="text/babel" data-presets="react" src="js/ui.js"></script>
+    <script type="text/babel" data-presets="react" src="js/vistas/seleccion-bolsin.js"></script>
+    <script type="text/babel" data-presets="react" src="js/vistas/opcion-recepcion.js"></script>
+    <script type="text/babel" data-presets="react" src="js/vistas/confirmacion.js"></script>
+    <script type="text/babel" data-presets="react" src="js/vistas/resultado.js"></script>
+    <script type="text/babel" data-presets="react" src="js/vistas/recepcion.js"></script>
+    <script type="text/babel" data-presets="react" src="js/vistas/consulta-estados.js"></script>
+    <script type="text/babel" data-presets="react" src="js/app.js"></script>
 </body>
 </html>
