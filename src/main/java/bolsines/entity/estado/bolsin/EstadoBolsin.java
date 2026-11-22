@@ -17,6 +17,8 @@ import java.util.Set;
  * Define la interfaz común de todos los estados del Bolsín. La implementación por defecto
  * de cada evento es "transición no permitida": los estados concretos redefinen solo los
  * eventos que tienen una transición de salida en la máquina de estados de Bolsín.
+ *
+ * Los estados no guardan datos propios: dos estados son iguales cuando son del mismo estado concreto.
  */
 public abstract class EstadoBolsin {
 
@@ -33,6 +35,26 @@ public abstract class EstadoBolsin {
                                         Empleado responsable, List<Remito> remitos,
                                         CambioEstadoBolsin cambioEstadoActual,
                                         OpcionRecepcion opcion, Set<Integer> documentacionMarcada) {
-        throw new TransicionNoPermitidaException("registrarBolsinRecibido", getNombre());
+        throw noPermitida("registrarBolsinRecibido");
+    }
+
+    /** La excepción por defecto de todo evento sin transición definida desde este estado. */
+    protected final TransicionNoPermitidaException noPermitida(String evento) {
+        return new TransicionNoPermitidaException(evento, getNombre());
+    }
+
+    @Override
+    public final boolean equals(Object otro) {
+        return otro != null && getClass() == otro.getClass();
+    }
+
+    @Override
+    public final int hashCode() {
+        return getClass().hashCode();
+    }
+
+    @Override
+    public final String toString() {
+        return getNombre();
     }
 }

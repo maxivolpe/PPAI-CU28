@@ -12,7 +12,7 @@ public class NoRecibida extends EstadoDocumentacion {
     }
 
     @Override
-    public boolean esNoRecibida() {
+    public boolean dejaRemitoIncompleto() {
         return true;
     }
 }

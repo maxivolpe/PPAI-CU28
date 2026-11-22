@@ -3,6 +3,7 @@ package bolsines.entity.estado.bolsin;
 import bolsines.entity.Bolsin;
 import bolsines.entity.CambioEstadoBolsin;
 import bolsines.entity.Empleado;
+import bolsines.entity.OpcionDeRecepcionInvalidaException;
 import bolsines.entity.OpcionRecepcion;
 import bolsines.entity.Remito;
 
@@ -40,8 +41,8 @@ public class Enviado extends EstadoBolsin {
                                         OpcionRecepcion opcion, Set<Integer> documentacionMarcada) {
         // Guarda [comisión destino igual CMC] de la máquina de estados (alternativo A5).
         // Se evalúa antes de tocar nada para no dejar la recepción a medias.
-        if (opcion == OpcionRecepcion.DOCUMENTACION_PARA_REDIRIGIR && !bolsin.getDestino().sosCentral()) {
-            throw new IllegalStateException(
+        if (!opcion.estaDisponiblePara(bolsin.getDestino())) {
+            throw new OpcionDeRecepcionInvalidaException(
                     "Solo la Comisión Médica Central puede redirigir documentación a otra área.");
         }
 

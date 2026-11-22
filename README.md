@@ -39,6 +39,10 @@ mvn -q compile exec:java -Dexec.args="consola"
 
 Para detener el servidor web, `Ctrl+C`.
 
+Valores por defecto: puerto `8080`, base `data/bolsines.db` y datos de prueba cargados si la base está vacía. Se pueden cambiar con las variables de entorno `BOLSINES_PUERTO`, `BOLSINES_DB` y `BOLSINES_DATOS_DE_PRUEBA=no` (el argumento de puerto tiene prioridad sobre la variable).
+
+La web admite varios usuarios a la vez: cada navegador recibe una cookie `sesion` y tiene su propio gestor y su propia pantalla. Si dos encargados intentan recibir el mismo bolsín, se guarda el primero y al segundo se le informa que el bolsín fue modificado por otro usuario.
+
 También se puede compilar un paquete y ejecutar las clases directamente:
 
 ```bash
@@ -55,7 +59,7 @@ La base se guarda en `data/bolsines.db` (está en `.gitignore`). Para volver al 
 rm data/bolsines.db      # Windows PowerShell: Remove-Item data\bolsines.db
 ```
 
-Se vuelve a crear solo al próximo arranque.
+Se vuelve a crear solo al próximo arranque. Una base creada por una versión anterior del programa se actualiza sola al arrancar (ver *Persistencia*), sin perder datos.
 
 ## Datos de prueba
 
@@ -78,20 +82,38 @@ Todos los usuarios tienen contraseña `ppai2026`. El empleado con el que se inic
 ```
 src/main/java/bolsines
 ├── Main.java                    Arranque (web o consola)
+├── Configuracion.java           Puerto, base de datos y modo (por argumentos y variables de entorno)
 ├── boundary/                    Pantallas (interfaz) y servidor de correo simulado
 │   ├── PantallaRecepcion        Interfaz que ve el gestor
 │   ├── PantallaRecepcionWeb     Implementación web
-│   ├── PantallaRecepcionConsola Implementación por consola
+│   ├── PantallaRecepcionConsola Implementación por consola (ComandoDeSeleccion interpreta lo que escribe el EB)
+│   ├── MenuConsola              Inicio de sesión simulado, CU 28 y consulta de estados por consola
+│   ├── ResumenDeBolsin, Email   Datos que viajan entre el gestor y las pantallas / el correo
 │   └── InterfazServidorCorreo   Simula el envío de emails (CU 29)
 ├── control/
-│   └── GestorRecepcion          Controlador del CU 28
-├── entity/                      Dominio: Bolsin, Remito, DetalleRemito, Documentacion, ...
+│   ├── GestorRecepcion          Controlador del CU 28 (la secuencia del caso de uso)
+│   ├── ValidadorDeOpcionDeRecepcion  Reglas de la opción elegida (paso 8)
+│   ├── NotificarRecepcionDeBolsin    CU 29 incluido: arma y envía los emails
+│   ├── RepositorioDeBolsines,        Lo que el gestor necesita de la persistencia (interfaces):
+│   │   RepositorioDeEmpleados        el gestor no sabe que detrás hay SQLite
+│   └── ConsultarEstadosGuardados     Consulta de apoyo (no es del CU 28), usada por consola y web
+├── entity/                      Dominio: Bolsin, Remito, DetalleRemito, Documentacion, OpcionRecepcion, ...
 │   └── estado/
 │       ├── bolsin/              Estados de Bolsín (State)
 │       ├── remito/              Estados de Remito (State)
 │       └── documentacion/       Estados de Documentación (State)
-├── persistencia/                SQLite con JDBC puro (BaseDeDatos, Esquema, MapeoEstados)
-└── web/                         Servidor HTTP (ServidorWeb) y JSON mínimo
+├── persistencia/                SQLite con JDBC puro
+│   ├── BaseDeDatos              Implementa los dos repositorios del control
+│   ├── ConexionSqlite           Conexiones (con claves foráneas activas) y transacciones
+│   ├── MigradorDeEsquema        Aplica una sola vez cada script de resources/db/migraciones
+│   ├── LectorDeTablas         Lee las tablas y arma los objetos
+│   ├── GrabadorDeRecepcion      Guarda la recepción: estados e historiales
+│   └── MapeoEstados             Nombre guardado -> objeto estado concreto
+└── web/                         ServidorWeb (HTTP), SesionesWeb (una sesión por navegador), EnrutadorApi
+                                 (tabla de rutas), ControladorRecepcionWeb, ArchivosEstaticos y JSON mínimo
+src/main/resources/db/
+├── migraciones/                 V001 esquema inicial, V002 índices (se agregan scripts nuevos al final)
+└── datos/datos-de-prueba.sql    Datos de prueba (se cargan si la base está vacía)
 src/main/resources/static/       Página web (React en el navegador, sin Node ni bundler)
 ├── index.html                   Carga las librerías de vendor/ y los archivos de js/ en orden
 ├── styles.css                   Estilos mobile-first (tokens, base, componentes, vistas)
@@ -104,8 +126,10 @@ src/main/resources/static/       Página web (React en el navegador, sin Node ni
     ├── ui.js                    Piezas reutilizables: Cargando, ErrorCarga, Estado, Aviso, ...
     ├── vistas/                  Una pantalla por archivo (selección, opciones, confirmación, ...)
     └── app.js                   Componente raíz (cabecera, pestañas) y arranque de React
-src/test/java/bolsines/          Tests del caso de uso
+src/test/java/bolsines/          Tests (ver la sección Tests)
 ```
+
+Cada paquete tiene un `package-info.java` que explica qué rol de Boundary – Control – Entity cumple.
 
 Los archivos de `js/` no usan módulos: comparten el ámbito global y `index.html` los carga en el orden de dependencia, porque Babel traduce el JSX en el navegador. Al agregar un archivo nuevo hay que sumarlo a `index.html`.
 
@@ -158,7 +182,7 @@ sequenceDiagram
     participant P as PantallaRecepcion
     participant G as GestorRecepcion
     participant B as Bolsin
-    participant DB as BaseDeDatos
+    participant DB as BaseDeDatos (RepositorioDeBolsines)
     participant M as InterfazServidorCorreo
 
     EB->>P: opcRegistrarRecepcion()
@@ -170,7 +194,7 @@ sequenceDiagram
     P->>G: tomarSeleccionBolsin(n)
     G->>B: obtenerInformacionRemito()
     G->>P: mostrarInfoBolsin(...)
-    G->>P: solicitarOpcRecepcion(cmEsCentral)
+    G->>P: solicitarOpcRecepcion(cmEmpleado)
     EB->>P: elige opción (+ documentación marcada)
     P->>G: tomarOpcRecepcion(opcion, marcada)
     G->>P: solicitarConfirmacion(...)
@@ -179,7 +203,7 @@ sequenceDiagram
     G->>B: registrarBolsinRecibido(fecha, responsable, cambioActual, opcion, marcada)
     Note over B: Acá actúa el patrón State<br/>(ver diagrama siguiente)
     G->>DB: guardarRecepcion(bolsín)
-    G->>M: enviarEmail(...) a cada CM de origen (CU 29)
+    G->>M: enviarEmail(...) a cada CM de origen (CU 29, vía NotificarRecepcionDeBolsin)
     G->>P: mostrarMensajeExito(...)
 ```
 
@@ -212,7 +236,7 @@ Los estados concretos solo redefinen los eventos que tienen una flecha de salida
 ```java
 // EstadoBolsin.java
 public void registrarBolsinRecibido(Bolsin bolsin, ...) {
-    throw new TransicionNoPermitidaException("registrarBolsinRecibido", getNombre());
+    throw noPermitida("registrarBolsinRecibido");   // crea una TransicionNoPermitidaException
 }
 ```
 
@@ -317,12 +341,19 @@ stateDiagram-v2
 
 - **Sin condicionales por estado:** el gestor y los contextos no preguntan «¿en qué estado estás?». Salvo `sosEnviado()`, que es una consulta polimórfica para filtrar el listado.
 - **Transiciones inválidas, rechazadas por diseño:** intentar recibir un bolsín que ya fue recibido lanza `TransicionNoPermitidaException`, porque `RecibidoEnCMDestino` no redefine el evento (hay un test para esto).
-- **Agregar un estado = agregar una clase**, sin tocar el gestor ni los demás estados.
+- **Agregar un estado = agregar una clase**, sin tocar el gestor ni los demás estados (y sumarla a la lista de `MapeoEstados` para poder leerla de la base).
 - **Trazabilidad:** cada transición cierra el `CambioEstado` vigente y crea uno nuevo con fecha, hora y responsable.
 
 ### Persistencia
 
-En la base solo se guarda el **nombre** del estado actual. Al leer, `MapeoEstados` reconstruye el objeto estado concreto a partir de ese nombre. La grabación (`BaseDeDatos.guardarRecepcion`) se hace **recién cuando todas las transiciones terminaron bien**, así que una falla a mitad de camino no deja la recepción guardada a medias.
+En la base solo se guarda el **nombre** del estado actual. Al leer, `MapeoEstados` reconstruye el objeto estado concreto a partir de ese nombre.
+
+- **El gestor no conoce SQLite.** Usa dos interfaces del paquete `control` (`RepositorioDeBolsines`, `RepositorioDeEmpleados`) que implementa `BaseDeDatos`.
+- **Todo o nada.** La grabación (`BaseDeDatos.guardarRecepcion`) se hace recién cuando todas las transiciones terminaron bien, y en una sola transacción: si algo falla a mitad de camino, no queda nada guardado a medias.
+- **El historial no se reescribe.** Por cada objeto que cambió de estado se hace en la base lo mismo que hizo el State en memoria: se cierra el cambio de estado vigente (fecha y hora de fin) y se agrega el nuevo.
+- **Sin pisar a otro usuario.** El estado del bolsín se actualiza solo si en la base sigue en el estado en que se leyó; si otro encargado lo recibió mientras tanto, se rechaza con `BolsinModificadoPorOtroUsuarioException`.
+- **Claves foráneas activas.** SQLite controla las `REFERENCES` del esquema solo si se le pide en cada conexión; `ConexionSqlite` lo hace siempre.
+- **Esquema versionado.** El esquema y los datos de prueba están en archivos `.sql` (`src/main/resources/db`). `MigradorDeEsquema` aplica cada script de `migraciones/` una sola vez y lo anota en la tabla `esquema_version`; para cambiar el esquema se agrega un script nuevo al final de la lista.
 
 ## Tests
 
@@ -330,4 +361,16 @@ En la base solo se guarda el **nombre** del estado actual. Al leer, `MapeoEstado
 mvn test
 ```
 
-`RegistrarRecepcionBolsinTest` cubre el flujo principal, los alternativos A1 a A6, las validaciones, el rechazo de una segunda recepción (patrón State) y el mismo caso de uso por HTTP.
+Los nombres siguen la forma **`dado<Contexto>_cuando<Acción>_entonces<Resultado>`** y el cuerpo se divide con comentarios `// Given`, `// When`, `// Then`. Están organizados de más rápidos a más completos:
+
+| Carpeta (`src/test/java/bolsines/`) | Qué prueba | Usa base de datos |
+|---|---|---|
+| `entity/` | El patrón State: cada estado que no es «Enviado» / «En Bolsín Enviado» rechaza el evento, y desde ese estado cada evento lleva al estado siguiente y abre su cambio de estado. También `OpcionRecepcion`. | No |
+| `control/` | `GestorRecepcion` paso por paso y en cada flujo alternativo, con un repositorio en memoria, una pantalla espía y un reloj fijo; el validador de la opción. | No |
+| `boundary/`, `web/` (unitarios) | Interpretación de comandos de consola, JSON, archivos estáticos. | No |
+| `persistencia/` | `BaseDeDatos` contra SQLite: migraciones, ida y vuelta de una recepción, atomicidad, dos usuarios con el mismo bolsín. | Sí |
+| `web/ApiRecepcionWebTest` | El CU por HTTP, con dos navegadores a la vez. | Sí |
+| `aceptacion/` | El CU 28 de punta a punta por consola: flujo principal y alternativos A1 a A6, una clase anidada por flujo. | Sí |
+| `ArquitecturaTest` | Que las entidades no dependan de otras capas y que el control no conozca la base de datos ni la web. | No |
+
+Los objetos de prueba se arman con `soporte/Escenarios`, así que cambiar los datos de demo no rompe los tests unitarios. El repositorio tiene un workflow de GitHub Actions (`.github/workflows/ci.yml`) que corre todo con JDK 21 en cada push.

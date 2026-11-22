@@ -1,5 +1,7 @@
 package bolsines.boundary;
 
+import bolsines.entity.ComisionMedica;
+import bolsines.entity.DatosDeDocumentacion;
 import bolsines.entity.OpcionRecepcion;
 
 import java.util.List;
@@ -17,14 +19,13 @@ public interface PantallaRecepcion {
 
     void mostrarMensaje(String mensaje);
 
-    /** Por cada bolsín: {número de bolsín, CM origen, número de precinto}. */
-    void solicitarSeleccionBolsin(List<String[]> bolsinesEnviados);
+    void solicitarSeleccionBolsin(List<ResumenDeBolsin> bolsinesEnviados);
 
-    /** Por cada remito (número): la documentación que contiene, {número, asunto, tipo}. */
-    void mostrarInfoBolsin(int numeroBolsin, String cmOrigen, int numeroPrecinto,
-                           Map<Integer, List<String[]>> informacionBolsin);
+    /** Por cada remito (número): la documentación que contiene. */
+    void mostrarInfoBolsin(ResumenDeBolsin bolsin, Map<Integer, List<DatosDeDocumentacion>> informacionBolsin);
 
-    void solicitarOpcRecepcion(boolean cmEsCentral);
+    /** La pantalla ofrece las cuatro opciones y marca como no disponibles las que no aplican a esa CM. */
+    void solicitarOpcRecepcion(ComisionMedica comisionMedica);
 
     void solicitarConfirmacion(OpcionRecepcion opcion, Set<Integer> documentacionMarcada);
 

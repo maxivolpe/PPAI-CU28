@@ -5,6 +5,7 @@ import bolsines.entity.estado.bolsin.EstadoBolsin;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -104,13 +105,23 @@ public class Bolsin {
         return origen.getNombre();
     }
 
+    /** Tell, don't ask: el bolsín responde si su precinto es el buscado. */
+    public boolean esDePrecinto(int numeroPrecintoBuscado) {
+        return numeroPrecinto == numeroPrecintoBuscado;
+    }
+
+    /** Tell, don't ask: el bolsín responde si el nombre de su CM de origen contiene el texto (sin distinguir mayúsculas). */
+    public boolean esDeCMOrigen(String textoDelNombre) {
+        return origen.getNombre().toLowerCase().contains(textoDelNombre.trim().toLowerCase());
+    }
+
     public int getNumPrecinto() {
         return numeroPrecinto;
     }
 
-    /** Por cada remito del bolsín (número) la documentación que contiene: {número, asunto, tipo}. */
-    public Map<Integer, List<String[]>> obtenerInformacionRemito() {
-        Map<Integer, List<String[]>> informacion = new LinkedHashMap<>();
+    /** Por cada remito del bolsín (número) la documentación que contiene. */
+    public Map<Integer, List<DatosDeDocumentacion>> obtenerInformacionRemito() {
+        Map<Integer, List<DatosDeDocumentacion>> informacion = new LinkedHashMap<>();
         for (Remito remito : remitos) {
             informacion.put(remito.getNumero(), remito.tomarDocumentacion());
         }
@@ -137,15 +148,17 @@ public class Bolsin {
         return destino;
     }
 
+    /** Vista de solo lectura: los remitos se agregan con {@link #agregarRemito(Remito)}. */
     public List<Remito> getRemitos() {
-        return remitos;
+        return Collections.unmodifiableList(remitos);
     }
 
     public EstadoBolsin getEstadoActual() {
         return estadoActual;
     }
 
+    /** Vista de solo lectura: el historial crece con {@link #agregarCambioEstado(CambioEstadoBolsin)}. */
     public List<CambioEstadoBolsin> getCambioEstados() {
-        return cambioEstados;
+        return Collections.unmodifiableList(cambioEstados);
     }
 }

@@ -1,7 +1,15 @@
 package bolsines.boundary;
 
+import bolsines.boundary.ComandoDeSeleccion.Cancelar;
+import bolsines.boundary.ComandoDeSeleccion.FiltrarPorOrigen;
+import bolsines.boundary.ComandoDeSeleccion.FiltrarPorPrecinto;
+import bolsines.boundary.ComandoDeSeleccion.Seleccionar;
+import bolsines.boundary.ComandoDeSeleccion.VerTodos;
 import bolsines.control.GestorRecepcion;
+import bolsines.entity.ComisionMedica;
+import bolsines.entity.DatosDeDocumentacion;
 import bolsines.entity.OpcionRecepcion;
+import bolsines.entity.ReglaDeNegocioException;
 
 import java.io.PrintStream;
 import java.util.LinkedHashSet;
@@ -16,7 +24,7 @@ import java.util.Set;
  */
 public class PantallaRecepcionConsola implements PantallaRecepcion {
 
-    private static final String CANCELAR = "c";
+    private static final String CANCELAR = ComandoDeSeleccion.CANCELAR;
 
     private final GestorRecepcion gestor;
     private final Scanner entrada;
@@ -54,48 +62,62 @@ public class PantallaRecepcionConsola implements PantallaRecepcion {
 
     /** Pasos 4 y 5, con los filtros de los flujos alternativos A1 y A2. */
     @Override
-    public void solicitarSeleccionBolsin(List<String[]> bolsinesEnviados) {
-        List<String[]> listado = bolsinesEnviados;
+    public void solicitarSeleccionBolsin(List<ResumenDeBolsin> bolsinesEnviados) {
+        List<ResumenDeBolsin> listado = bolsinesEnviados;
         while (true) {
-            salida.println();
-            salida.println("Bolsines enviados a esta comisión médica:");
-            for (String[] bolsin : listado) {
-                salida.println("  Bolsín " + bolsin[0] + " | Origen: " + bolsin[1] + " | Precinto N° " + bolsin[2]);
-            }
-            salida.println("Ingrese el número de bolsín, 'p <precinto>' o 'o <CM origen>' para filtrar, "
-                    + "'t' para ver todos, '" + CANCELAR + "' para cancelar:");
-            String texto = leer();
+            mostrarListado(listado);
+            ComandoDeSeleccion comando = ComandoDeSeleccion.interpretar(leer());
 
-            if (texto.equalsIgnoreCase(CANCELAR)) {
+            if (comando instanceof Cancelar) {
                 gestor.cancelarCasoDeUso();
                 return;
             }
-            if (texto.equalsIgnoreCase("t")) {
-                listado = bolsinesEnviados;
-            } else if (texto.toLowerCase().startsWith("p ")) {
-                Integer precinto = aEntero(texto.substring(2));
-                List<String[]> filtrado = precinto == null ? List.of() : gestor.tomarFiltroPrecinto(precinto);
-                if (filtrado.isEmpty()) {
-                    mostrarMensaje("[A1] No se encuentra bolsín con el número de precinto ingresado.");
-                } else {
-                    listado = filtrado;
-                }
-            } else if (texto.toLowerCase().startsWith("o ")) {
-                List<String[]> filtrado = gestor.tomarFiltroCMOrigen(texto.substring(2));
-                if (filtrado.isEmpty()) {
-                    mostrarMensaje("[A2] No se encuentra bolsín con la CM de origen ingresada.");
-                } else {
-                    listado = filtrado;
-                }
-            } else {
-                Integer numeroBolsin = aEntero(texto);
-                if (numeroBolsin != null && contiene(bolsinesEnviados, numeroBolsin)) {
-                    tomarSeleccionBolsin(numeroBolsin);
-                    return;
-                }
-                mostrarMensaje("Ingreso no válido: elija un bolsín del listado.");
+            if (comando instanceof Seleccionar seleccion && contiene(bolsinesEnviados, seleccion.numeroBolsin())) {
+                tomarSeleccionBolsin(seleccion.numeroBolsin());
+                return;
             }
+            listado = aplicarComando(comando, listado, bolsinesEnviados);
         }
+    }
+
+    private void mostrarListado(List<ResumenDeBolsin> listado) {
+        salida.println();
+        salida.println("Bolsines enviados a esta comisión médica:");
+        for (ResumenDeBolsin bolsin : listado) {
+            salida.println("  Bolsín " + bolsin.numero() + " | Origen: " + bolsin.cmOrigen()
+                    + " | Precinto N° " + bolsin.precinto());
+        }
+        salida.println("Ingrese el número de bolsín, 'p <precinto>' o 'o <CM origen>' para filtrar, "
+                + "'" + ComandoDeSeleccion.VER_TODOS + "' para ver todos, '" + CANCELAR + "' para cancelar:");
+    }
+
+    /** @return el listado a mostrar a continuación: el filtrado, o el mismo si el comando no filtra o no halló resultados. */
+    private List<ResumenDeBolsin> aplicarComando(ComandoDeSeleccion comando, List<ResumenDeBolsin> actual,
+                                                 List<ResumenDeBolsin> todos) {
+        if (comando instanceof VerTodos) {
+            return todos;
+        }
+        if (comando instanceof FiltrarPorPrecinto filtro) {
+            List<ResumenDeBolsin> filtrado =
+                    filtro.precinto() == null ? List.of() : gestor.tomarFiltroPrecinto(filtro.precinto());
+            return filtradoOMensaje(filtrado, actual,
+                    "[A1] No se encuentra bolsín con el número de precinto ingresado.");
+        }
+        if (comando instanceof FiltrarPorOrigen filtro) {
+            return filtradoOMensaje(gestor.tomarFiltroCMOrigen(filtro.texto()), actual,
+                    "[A2] No se encuentra bolsín con la CM de origen ingresada.");
+        }
+        mostrarMensaje("Ingreso no válido: elija un bolsín del listado.");
+        return actual;
+    }
+
+    private List<ResumenDeBolsin> filtradoOMensaje(List<ResumenDeBolsin> filtrado, List<ResumenDeBolsin> actual,
+                                                   String mensajeSinResultados) {
+        if (filtrado.isEmpty()) {
+            mostrarMensaje(mensajeSinResultados);
+            return actual;
+        }
+        return filtrado;
     }
 
     private void tomarSeleccionBolsin(int numeroBolsin) {
@@ -104,15 +126,15 @@ public class PantallaRecepcionConsola implements PantallaRecepcion {
 
     /** Paso 6: número de cada remito y, por cada documentación, asunto y tipo. */
     @Override
-    public void mostrarInfoBolsin(int numeroBolsin, String cmOrigen, int numeroPrecinto,
-                                  Map<Integer, List<String[]>> informacionBolsin) {
+    public void mostrarInfoBolsin(ResumenDeBolsin bolsin, Map<Integer, List<DatosDeDocumentacion>> informacionBolsin) {
         salida.println();
-        salida.println("Bolsín " + numeroBolsin + " | Origen: " + cmOrigen + " | Precinto N° " + numeroPrecinto);
-        for (Map.Entry<Integer, List<String[]>> remito : informacionBolsin.entrySet()) {
+        salida.println("Bolsín " + bolsin.numero() + " | Origen: " + bolsin.cmOrigen()
+                + " | Precinto N° " + bolsin.precinto());
+        for (Map.Entry<Integer, List<DatosDeDocumentacion>> remito : informacionBolsin.entrySet()) {
             salida.println("  Remito " + remito.getKey());
-            for (String[] documentacion : remito.getValue()) {
-                salida.println("    Doc. " + documentacion[0] + " | " + documentacion[1]
-                        + " | Tipo: " + documentacion[2]);
+            for (DatosDeDocumentacion documentacion : remito.getValue()) {
+                salida.println("    Doc. " + documentacion.numero() + " | " + documentacion.asunto()
+                        + " | Tipo: " + documentacion.tipo());
             }
         }
     }
@@ -121,44 +143,52 @@ public class PantallaRecepcionConsola implements PantallaRecepcion {
 
     /** Pasos 7 y 8. La opción 4 solo se ofrece si la CM del usuario es la CMC. */
     @Override
-    public void solicitarOpcRecepcion(boolean cmEsCentral) {
+    public void solicitarOpcRecepcion(ComisionMedica comisionMedica) {
         while (true) {
-            salida.println();
-            salida.println("Opciones de recepción:");
-            for (OpcionRecepcion opcion : OpcionRecepcion.values()) {
-                boolean noDisponible = opcion == OpcionRecepcion.DOCUMENTACION_PARA_REDIRIGIR && !cmEsCentral;
-                salida.println("  " + opcion.getNumero() + ". " + opcion.getDescripcion()
-                        + (noDisponible ? " (no disponible: solo para la Comisión Médica Central)" : ""));
-            }
-            salida.println("Ingrese la opción ('" + CANCELAR + "' para cancelar):");
+            mostrarOpciones(comisionMedica);
             String texto = leer();
             if (texto.equalsIgnoreCase(CANCELAR)) {
                 gestor.cancelarCasoDeUso();
                 return;
             }
 
-            Integer numero = aEntero(texto);
+            Integer numero = ComandoDeSeleccion.aEntero(texto);
             if (numero == null || numero < 1 || numero > OpcionRecepcion.values().length) {
                 mostrarMensaje("Opción no válida.");
                 continue;
             }
             OpcionRecepcion opcion = OpcionRecepcion.desdeNumero(numero);
 
-            Set<Integer> documentacionMarcada = new LinkedHashSet<>();
-            if (opcion.requiereSeleccionDeDocumentacion()) {
-                salida.println("Ingrese los números de la documentación afectada, separados por coma:");
-                for (String parte : leer().split(",")) {
-                    Integer numeroDocumentacion = aEntero(parte);
-                    if (numeroDocumentacion != null) {
-                        documentacionMarcada.add(numeroDocumentacion);
-                    }
-                }
-            }
-
-            if (tomarOpcRecepcion(opcion, documentacionMarcada)) {
+            if (tomarOpcRecepcion(opcion, pedirDocumentacionAfectada(opcion))) {
                 return;
             }
         }
+    }
+
+    private void mostrarOpciones(ComisionMedica comisionMedica) {
+        salida.println();
+        salida.println("Opciones de recepción:");
+        for (OpcionRecepcion opcion : OpcionRecepcion.values()) {
+            salida.println("  " + opcion.getNumero() + ". " + opcion.getDescripcion()
+                    + (opcion.estaDisponiblePara(comisionMedica)
+                    ? "" : " (no disponible: solo para la Comisión Médica Central)"));
+        }
+        salida.println("Ingrese la opción ('" + CANCELAR + "' para cancelar):");
+    }
+
+    /** Las opciones 2, 3 y 4 piden los números de la documentación a la que se aplican. */
+    private Set<Integer> pedirDocumentacionAfectada(OpcionRecepcion opcion) {
+        Set<Integer> documentacionMarcada = new LinkedHashSet<>();
+        if (opcion.requiereSeleccionDeDocumentacion()) {
+            salida.println("Ingrese los números de la documentación afectada, separados por coma:");
+            for (String parte : leer().split(",")) {
+                Integer numeroDocumentacion = ComandoDeSeleccion.aEntero(parte);
+                if (numeroDocumentacion != null) {
+                    documentacionMarcada.add(numeroDocumentacion);
+                }
+            }
+        }
+        return documentacionMarcada;
     }
 
     /** @return falso si el gestor rechazó la opción (se vuelve a pedir). */
@@ -166,7 +196,7 @@ public class PantallaRecepcionConsola implements PantallaRecepcion {
         try {
             gestor.tomarOpcRecepcion(opcion, documentacionMarcada);
             return true;
-        } catch (IllegalArgumentException e) {
+        } catch (ReglaDeNegocioException e) {
             mostrarMensaje(e.getMessage());
             return false;
         }
@@ -197,7 +227,12 @@ public class PantallaRecepcionConsola implements PantallaRecepcion {
     }
 
     private void tomarConfirmacion(boolean confirma) {
-        gestor.tomarConfirmacion(confirma);
+        try {
+            gestor.tomarConfirmacion(confirma);
+        } catch (ReglaDeNegocioException e) {
+            // Por ejemplo, otro usuario recibió el mismo bolsín mientras tanto: no se guardó nada.
+            mostrarMensaje(e.getMessage());
+        }
     }
 
     @Override
@@ -212,20 +247,7 @@ public class PantallaRecepcionConsola implements PantallaRecepcion {
         return entrada.nextLine().trim();
     }
 
-    private Integer aEntero(String texto) {
-        try {
-            return Integer.valueOf(texto.trim());
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
-    private boolean contiene(List<String[]> bolsines, int numeroBolsin) {
-        for (String[] bolsin : bolsines) {
-            if (bolsin[0].equals(String.valueOf(numeroBolsin))) {
-                return true;
-            }
-        }
-        return false;
+    private boolean contiene(List<ResumenDeBolsin> bolsines, int numeroBolsin) {
+        return bolsines.stream().anyMatch(bolsin -> bolsin.numero() == numeroBolsin);
     }
 }

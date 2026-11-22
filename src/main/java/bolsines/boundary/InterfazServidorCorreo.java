@@ -2,6 +2,7 @@ package bolsines.boundary;
 
 import java.io.PrintStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -12,8 +13,7 @@ import java.util.List;
 public class InterfazServidorCorreo {
 
     private final PrintStream salida;
-    /** Cada email: {destinatario, asunto, cuerpo}. */
-    private final List<String[]> emailsEnviados = new ArrayList<>();
+    private final List<Email> emailsEnviados = new ArrayList<>();
 
     public InterfazServidorCorreo(PrintStream salida) {
         this.salida = salida;
@@ -24,10 +24,11 @@ public class InterfazServidorCorreo {
         salida.println("[Email simulado] Para: " + destinatario);
         salida.println("[Email simulado] Asunto: " + asunto);
         salida.print(cuerpo);
-        emailsEnviados.add(new String[]{destinatario, asunto, cuerpo});
+        emailsEnviados.add(new Email(destinatario, asunto, cuerpo));
     }
 
-    public List<String[]> getEmailsEnviados() {
-        return emailsEnviados;
+    /** Vista de solo lectura de lo enviado hasta ahora. */
+    public List<Email> getEmailsEnviados() {
+        return Collections.unmodifiableList(emailsEnviados);
     }
 }

@@ -12,7 +12,7 @@ public class RecibidaYRechazada extends EstadoDocumentacion {
     }
 
     @Override
-    public boolean esRecibidaYRechazada() {
+    public boolean dejaRemitoIncompleto() {
         return true;
     }
 }

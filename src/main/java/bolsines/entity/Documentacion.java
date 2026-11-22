@@ -5,6 +5,7 @@ import bolsines.entity.estado.documentacion.EstadoDocumentacion;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -91,7 +92,8 @@ public class Documentacion {
         return estadoActual;
     }
 
+    /** Vista de solo lectura: el historial crece con {@link #agregarCambioEstado(CambioEstadoDocumentacion)}. */
     public List<CambioEstadoDocumentacion> getCambioEstadoDocumentacion() {
-        return cambioEstadoDocumentacion;
+        return Collections.unmodifiableList(cambioEstadoDocumentacion);
     }
 }

@@ -1,5 +1,7 @@
 package bolsines.boundary;
 
+import bolsines.entity.ComisionMedica;
+import bolsines.entity.DatosDeDocumentacion;
 import bolsines.entity.OpcionRecepcion;
 
 import java.util.ArrayList;
@@ -62,22 +64,21 @@ public class PantallaRecepcionWeb implements PantallaRecepcion {
     }
 
     @Override
-    public void solicitarSeleccionBolsin(List<String[]> bolsinesEnviados) {
+    public void solicitarSeleccionBolsin(List<ResumenDeBolsin> bolsinesEnviados) {
         vista.put("bolsines", bolsines(bolsinesEnviados));
         vista.put("paso", "seleccionBolsin");
     }
 
     @Override
-    public void mostrarInfoBolsin(int numeroBolsin, String cmOrigen, int numeroPrecinto,
-                                  Map<Integer, List<String[]>> informacionBolsin) {
+    public void mostrarInfoBolsin(ResumenDeBolsin bolsin, Map<Integer, List<DatosDeDocumentacion>> informacionBolsin) {
         List<Map<String, Object>> remitos = new ArrayList<>();
-        for (Map.Entry<Integer, List<String[]>> remito : informacionBolsin.entrySet()) {
+        for (Map.Entry<Integer, List<DatosDeDocumentacion>> remito : informacionBolsin.entrySet()) {
             List<Map<String, Object>> documentacion = new ArrayList<>();
-            for (String[] datos : remito.getValue()) {
+            for (DatosDeDocumentacion datos : remito.getValue()) {
                 Map<String, Object> item = new LinkedHashMap<>();
-                item.put("numero", Integer.valueOf(datos[0]));
-                item.put("asunto", datos[1]);
-                item.put("tipo", datos[2]);
+                item.put("numero", datos.numero());
+                item.put("asunto", datos.asunto());
+                item.put("tipo", datos.tipo());
                 documentacion.add(item);
             }
             Map<String, Object> item = new LinkedHashMap<>();
@@ -85,23 +86,23 @@ public class PantallaRecepcionWeb implements PantallaRecepcion {
             item.put("documentacion", documentacion);
             remitos.add(item);
         }
-        Map<String, Object> bolsin = new LinkedHashMap<>();
-        bolsin.put("numero", numeroBolsin);
-        bolsin.put("cmOrigen", cmOrigen);
-        bolsin.put("precinto", numeroPrecinto);
-        bolsin.put("remitos", remitos);
-        vista.put("bolsin", bolsin);
+        Map<String, Object> vistaBolsin = new LinkedHashMap<>();
+        vistaBolsin.put("numero", bolsin.numero());
+        vistaBolsin.put("cmOrigen", bolsin.cmOrigen());
+        vistaBolsin.put("precinto", bolsin.precinto());
+        vistaBolsin.put("remitos", remitos);
+        vista.put("bolsin", vistaBolsin);
     }
 
     @Override
-    public void solicitarOpcRecepcion(boolean cmEsCentral) {
+    public void solicitarOpcRecepcion(ComisionMedica comisionMedica) {
         List<Map<String, Object>> opciones = new ArrayList<>();
         for (OpcionRecepcion opcion : OpcionRecepcion.values()) {
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("numero", opcion.getNumero());
             item.put("descripcion", opcion.getDescripcion());
             item.put("requiereSeleccion", opcion.requiereSeleccionDeDocumentacion());
-            item.put("disponible", opcion != OpcionRecepcion.DOCUMENTACION_PARA_REDIRIGIR || cmEsCentral);
+            item.put("disponible", opcion.estaDisponiblePara(comisionMedica));
             opciones.add(item);
         }
         vista.put("opciones", opciones);
@@ -124,14 +125,14 @@ public class PantallaRecepcionWeb implements PantallaRecepcion {
         vista.put("paso", "exito");
     }
 
-    /** Convierte el listado {número, CM origen, precinto} al formato que recibe la página. */
-    public static List<Map<String, Object>> bolsines(List<String[]> listado) {
+    /** Convierte el listado de bolsines al formato que recibe la página. */
+    public static List<Map<String, Object>> bolsines(List<ResumenDeBolsin> listado) {
         List<Map<String, Object>> bolsines = new ArrayList<>();
-        for (String[] datos : listado) {
+        for (ResumenDeBolsin resumen : listado) {
             Map<String, Object> item = new LinkedHashMap<>();
-            item.put("numero", Integer.valueOf(datos[0]));
-            item.put("cmOrigen", datos[1]);
-            item.put("precinto", Integer.valueOf(datos[2]));
+            item.put("numero", resumen.numero());
+            item.put("cmOrigen", resumen.cmOrigen());
+            item.put("precinto", resumen.precinto());
             bolsines.add(item);
         }
         return bolsines;

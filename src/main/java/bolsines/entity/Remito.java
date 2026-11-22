@@ -5,6 +5,7 @@ import bolsines.entity.estado.remito.EstadoRemito;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -54,15 +55,13 @@ public class Remito {
 
     // ---------------------------------------------------------------- consultas
 
-    /** Por cada documentación del remito: {número, asunto, tipo de documentación}. */
-    public List<String[]> tomarDocumentacion() {
-        List<String[]> datos = new ArrayList<>();
+    /** Por cada documentación del remito: número, asunto y tipo de documentación. */
+    public List<DatosDeDocumentacion> tomarDocumentacion() {
+        List<DatosDeDocumentacion> datos = new ArrayList<>();
         for (DetalleRemito detalle : detallesRemito) {
             Documentacion documentacion = detalle.getDocumentacion();
-            datos.add(new String[]{
-                    String.valueOf(documentacion.getNumero()),
-                    documentacion.getAsunto(),
-                    documentacion.getTipoDocumentacion()});
+            datos.add(new DatosDeDocumentacion(documentacion.getNumero(), documentacion.getAsunto(),
+                    documentacion.getTipoDocumentacion()));
         }
         return datos;
     }
@@ -87,7 +86,8 @@ public class Remito {
         return estadoActual;
     }
 
+    /** Vista de solo lectura: los detalles se agregan con {@link #agregarDetalle(DetalleRemito)}. */
     public List<DetalleRemito> getDetallesRemito() {
-        return detallesRemito;
+        return Collections.unmodifiableList(detallesRemito);
     }
 }
