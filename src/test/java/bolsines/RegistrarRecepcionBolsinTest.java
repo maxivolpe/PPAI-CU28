@@ -44,8 +44,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class RegistrarRecepcionBolsinTest {
 
-    private static final String CORDOBA = "lfernandez";
-    private static final String CENTRAL = "dsosa";
+    private static final String TUCUMAN = "cmendez";
+    private static final String CENTRAL = "hrojas";
 
     @TempDir
     Path carpeta;
@@ -59,12 +59,12 @@ class RegistrarRecepcionBolsinTest {
 
     @Test
     void flujoPrincipal_todoQuedaRecibidoYAceptadoConTrazabilidad() {
-        String salida = ejecutar(CORDOBA, "1001", "1", "s");
+        String salida = ejecutar(TUCUMAN, "2001", "1", "s");
 
         assertTrue(salida.contains("Recepción registrada con éxito"));
-        assertTrue(salida.contains("Para: cmrosario@organismo.gob.ar"), "notifica a la CM de origen (CU 29)");
+        assertTrue(salida.contains("Para: cmsalta@organismo.gob.ar"), "notifica a la CM de origen (CU 29)");
 
-        Bolsin bolsin = bolsin(1001);
+        Bolsin bolsin = bolsin(2001);
         assertEquals("Recibido en CM Destino", bolsin.getEstadoActual().getNombre());
         assertEquals(2, bolsin.getCambioEstados().size());
         CambioEstadoBolsin anterior = bolsin.getCambioEstados().get(0);
@@ -73,7 +73,7 @@ class RegistrarRecepcionBolsinTest {
         assertNotNull(anterior.getFechaHoraFin());
         assertEquals(anterior.getFechaHoraFin(), vigente.getFechaHoraInicio());
         assertNull(vigente.getFechaHoraFin());
-        assertEquals("Fernández", vigente.getResponsable().getApellido());
+        assertEquals("Méndez", vigente.getResponsable().getApellido());
 
         for (Remito remito : bolsin.getRemitos()) {
             assertEquals("Recibido y Aceptado", remito.getEstadoActual().getNombre());
@@ -82,7 +82,7 @@ class RegistrarRecepcionBolsinTest {
                 assertEquals("Recibida y Aceptada", documentacion.getEstadoActual().getNombre());
                 assertEquals(2, documentacion.getCambioEstadoDocumentacion().size());
                 assertNotNull(documentacion.getCambioEstadoDocumentacion().get(0).getFechaHoraFin());
-                assertEquals("Fernández",
+                assertEquals("Méndez",
                         documentacion.getCambioEstadoDocumentacion().get(1).getResponsable().getApellido());
             }
         }
@@ -90,90 +90,90 @@ class RegistrarRecepcionBolsinTest {
 
     @Test
     void listado_soloBolsinesEnviadosALaCMDelUsuario() {
-        String salida = ejecutar(CORDOBA, "c");
+        String salida = ejecutar(TUCUMAN, "c");
 
-        assertTrue(salida.contains("Comisión médica: Comisión Médica Córdoba"));
-        assertTrue(salida.contains("Bolsín 1001") && salida.contains("Bolsín 1002") && salida.contains("Bolsín 1003"));
-        assertFalse(salida.contains("Bolsín 1004"), "destino CMC");
-        assertFalse(salida.contains("Bolsín 1006"), "destino Rosario");
-        assertFalse(salida.contains("Bolsín 1007"), "está Cerrado, no Enviado");
+        assertTrue(salida.contains("Comisión médica: Comisión Médica Tucumán"));
+        assertTrue(salida.contains("Bolsín 2001") && salida.contains("Bolsín 2002") && salida.contains("Bolsín 2003"));
+        assertFalse(salida.contains("Bolsín 2004"), "destino CMC");
+        assertFalse(salida.contains("Bolsín 2006"), "destino Salta");
+        assertFalse(salida.contains("Bolsín 2007"), "está Cerrado, no Enviado");
     }
 
     @Test
     void a1yA2_filtrosSinResultadoInformanYPermitenSeguir() {
-        String salida = ejecutar(CORDOBA, "p 999999", "o Mendoza", "p 458102", "1002", "1", "s");
+        String salida = ejecutar(TUCUMAN, "p 999999", "o Jujuy", "p 731202", "2002", "1", "s");
 
         assertTrue(salida.contains("[A1] No se encuentra bolsín con el número de precinto ingresado."));
         assertTrue(salida.contains("[A2] No se encuentra bolsín con la CM de origen ingresada."));
-        assertEquals("Recibido en CM Destino", bolsin(1002).getEstadoActual().getNombre());
+        assertEquals("Recibido en CM Destino", bolsin(2002).getEstadoActual().getNombre());
     }
 
     @Test
     void a3_documentacionNoRecibidaDejaElRemitoParcial() {
-        ejecutar(CORDOBA, "1001", "2", "5002", "s");
+        ejecutar(TUCUMAN, "2001", "2", "6002", "s");
 
-        Bolsin bolsin = bolsin(1001);
+        Bolsin bolsin = bolsin(2001);
         assertEquals("Recibido en CM Destino", bolsin.getEstadoActual().getNombre());
-        assertEquals("No Recibida", documentacion(bolsin, 5002).getEstadoActual().getNombre());
-        assertEquals("Recibida y Aceptada", documentacion(bolsin, 5001).getEstadoActual().getNombre());
-        assertEquals("Recibido y Aceptado Parcial", remito(bolsin, 3001).getEstadoActual().getNombre());
-        assertEquals("Recibido y Aceptado", remito(bolsin, 3002).getEstadoActual().getNombre());
+        assertEquals("No Recibida", documentacion(bolsin, 6002).getEstadoActual().getNombre());
+        assertEquals("Recibida y Aceptada", documentacion(bolsin, 6001).getEstadoActual().getNombre());
+        assertEquals("Recibido y Aceptado Parcial", remito(bolsin, 4001).getEstadoActual().getNombre());
+        assertEquals("Recibido y Aceptado", remito(bolsin, 4002).getEstadoActual().getNombre());
     }
 
     @Test
     void a4_documentacionQueNoCorrespondeQuedaRechazada() {
-        ejecutar(CORDOBA, "1002", "3", "5005, 5006", "s");
+        ejecutar(TUCUMAN, "2002", "3", "6005, 6006", "s");
 
-        Bolsin bolsin = bolsin(1002);
-        assertEquals("Recibida y Rechazada", documentacion(bolsin, 5005).getEstadoActual().getNombre());
-        assertEquals("Recibida y Rechazada", documentacion(bolsin, 5006).getEstadoActual().getNombre());
-        assertEquals("Recibida y Aceptada", documentacion(bolsin, 5004).getEstadoActual().getNombre());
-        assertEquals("Recibido y Aceptado Parcial", remito(bolsin, 3003).getEstadoActual().getNombre());
+        Bolsin bolsin = bolsin(2002);
+        assertEquals("Recibida y Rechazada", documentacion(bolsin, 6005).getEstadoActual().getNombre());
+        assertEquals("Recibida y Rechazada", documentacion(bolsin, 6006).getEstadoActual().getNombre());
+        assertEquals("Recibida y Aceptada", documentacion(bolsin, 6004).getEstadoActual().getNombre());
+        assertEquals("Recibido y Aceptado Parcial", remito(bolsin, 4003).getEstadoActual().getNombre());
     }
 
     @Test
     void a5_laCMCRedirigeDocumentacion() {
-        ejecutar(CENTRAL, "1004", "4", "5010,5011", "s");
+        ejecutar(CENTRAL, "2004", "4", "6010,6011", "s");
 
-        Bolsin bolsin = bolsin(1004);
+        Bolsin bolsin = bolsin(2004);
         assertEquals("Recibido en CM Destino", bolsin.getEstadoActual().getNombre());
-        assertEquals("Para Redirigir", documentacion(bolsin, 5010).getEstadoActual().getNombre());
-        assertEquals("Para Redirigir", documentacion(bolsin, 5011).getEstadoActual().getNombre());
-        assertEquals("Recibida y Aceptada", documentacion(bolsin, 5012).getEstadoActual().getNombre());
-        assertEquals("Recibido y Aceptado", remito(bolsin, 3006).getEstadoActual().getNombre());
+        assertEquals("Para Redirigir", documentacion(bolsin, 6010).getEstadoActual().getNombre());
+        assertEquals("Para Redirigir", documentacion(bolsin, 6011).getEstadoActual().getNombre());
+        assertEquals("Recibida y Aceptada", documentacion(bolsin, 6012).getEstadoActual().getNombre());
+        assertEquals("Recibido y Aceptado", remito(bolsin, 4006).getEstadoActual().getNombre());
     }
 
     @Test
     void a5_unaCMQueNoEsLaCentralNoPuedeRedirigir() {
-        String salida = ejecutar(CORDOBA, "1001", "4", "5001", "c");
+        String salida = ejecutar(TUCUMAN, "2001", "4", "6001", "c");
 
         assertTrue(salida.contains("La opción 4 solo aplica cuando la CM destino es la Comisión Médica Central."));
-        assertEquals("Enviado", bolsin(1001).getEstadoActual().getNombre());
+        assertEquals("Enviado", bolsin(2001).getEstadoActual().getNombre());
     }
 
     @Test
     void a6_noConfirmarVuelveAPedirLaOpcionSinRegistrarNada() {
-        String salida = ejecutar(CORDOBA, "1003", "2", "5008", "n", "c");
+        String salida = ejecutar(TUCUMAN, "2003", "2", "6008", "n", "c");
 
         assertTrue(salida.contains("No se confirmó la selección"));
-        Bolsin bolsin = bolsin(1003);
+        Bolsin bolsin = bolsin(2003);
         assertEquals("Enviado", bolsin.getEstadoActual().getNombre());
-        assertEquals("En Bolsin Enviado", documentacion(bolsin, 5008).getEstadoActual().getNombre());
+        assertEquals("En Bolsin Enviado", documentacion(bolsin, 6008).getEstadoActual().getNombre());
         assertEquals(1, bolsin.getCambioEstados().size());
     }
 
     @Test
     void validaciones_opcionAlternativaSinDocumentacionODeOtroBolsin() {
-        String salida = ejecutar(CORDOBA, "1001", "2", "", "2", "5004", "c");
+        String salida = ejecutar(TUCUMAN, "2001", "2", "", "2", "6004", "c");
 
         assertTrue(salida.contains("Debe indicar al menos una documentación para esta opción."));
-        assertTrue(salida.contains("La documentación 5004 no pertenece al bolsín."));
+        assertTrue(salida.contains("La documentación 6004 no pertenece al bolsín."));
     }
 
     @Test
     void patronState_unBolsinYaRecibidoRechazaUnaNuevaRecepcion() {
-        ejecutar(CORDOBA, "1001", "1", "s");
-        Bolsin recibido = bolsin(1001);
+        ejecutar(TUCUMAN, "2001", "1", "s");
+        Bolsin recibido = bolsin(2001);
         Empleado responsable = baseDeDatos.buscarEmpleados().get(0);
 
         // El estado concreto RecibidoEnCMDestino no redefine el evento: lo rechaza.
@@ -181,7 +181,7 @@ class RegistrarRecepcionBolsinTest {
                 LocalDateTime.now(), responsable, recibido.buscarCambioEstadoActual(),
                 OpcionRecepcion.CONTENIDO_IGUAL, Set.of()));
         // Lo mismo la Documentación ya aceptada.
-        assertThrows(TransicionNoPermitidaException.class, () -> documentacion(recibido, 5001)
+        assertThrows(TransicionNoPermitidaException.class, () -> documentacion(recibido, 6001)
                 .registrarDocumentacionNoRecibida(LocalDateTime.now(), responsable));
     }
 
@@ -195,22 +195,22 @@ class RegistrarRecepcionBolsinTest {
 
             assertTrue(http("POST", base + "/api/sesion?usuario=" + CENTRAL).contains("Comisión Médica Central"));
             String listado = http("POST", base + "/api/recepcion/iniciar");
-            assertTrue(listado.contains("\"paso\":\"seleccionBolsin\"") && listado.contains("\"numero\":1004"));
+            assertTrue(listado.contains("\"paso\":\"seleccionBolsin\"") && listado.contains("\"numero\":2004"));
 
             assertTrue(http("GET", base + "/api/recepcion/filtro?precinto=999999").contains("\"flujoAlternativo\":\"A1\""));
             assertTrue(http("GET", base + "/api/recepcion/filtro?cmOrigen=Marte").contains("\"flujoAlternativo\":\"A2\""));
 
-            assertTrue(http("POST", base + "/api/recepcion/seleccion?bolsin=1004").contains("\"paso\":\"opcion\""));
+            assertTrue(http("POST", base + "/api/recepcion/seleccion?bolsin=2004").contains("\"paso\":\"opcion\""));
             // Opción alternativa sin documentación marcada: el gestor la rechaza.
             assertTrue(http("POST", base + "/api/recepcion/opcion?numero=4").contains("\"error\""));
-            http("POST", base + "/api/recepcion/opcion?numero=4&documentacion=5010");
+            http("POST", base + "/api/recepcion/opcion?numero=4&documentacion=6010");
             // A6: no confirma y vuelve a las opciones.
             assertTrue(http("POST", base + "/api/recepcion/confirmacion?confirma=false").contains("\"paso\":\"opcion\""));
-            http("POST", base + "/api/recepcion/opcion?numero=4&documentacion=5010");
+            http("POST", base + "/api/recepcion/opcion?numero=4&documentacion=6010");
             String resultado = http("POST", base + "/api/recepcion/confirmacion?confirma=true");
             assertTrue(resultado.contains("\"paso\":\"exito\"") && resultado.contains("\"emails\":[{"));
 
-            assertEquals("Para Redirigir", documentacion(bolsin(1004), 5010).getEstadoActual().getNombre());
+            assertEquals("Para Redirigir", documentacion(bolsin(2004), 6010).getEstadoActual().getNombre());
             assertTrue(http("GET", base + "/api/consulta").contains("Recibido en CM Destino"));
         } finally {
             servidor.detener();

@@ -59,19 +59,19 @@ Se vuelve a crear solo al próximo arranque.
 
 ## Datos de prueba
 
-Todos los usuarios tienen contraseña `1234`. El empleado con el que se inicia sesión determina la Comisión Médica (CM) **destino** de los bolsines que se pueden recibir.
+Todos los usuarios tienen contraseña `ppai2026`. El empleado con el que se inicia sesión determina la Comisión Médica (CM) **destino** de los bolsines que se pueden recibir.
 
 | Usuario      | Empleado         | CM del empleado          | Bolsines «Enviado» que puede recibir |
 |--------------|------------------|--------------------------|--------------------------------------|
-| `lfernandez` | Lucía Fernández  | Córdoba (CBA)            | 1001, 1002, 1003                     |
-| `dsosa`      | Diego Sosa       | **Central (CMC)**        | 1004, 1005                           |
-| `mgomez`     | Marta Gómez      | Rosario (ROS)            | 1006                                 |
-| `jperez`     | Juan Pérez       | Villa María (VMA)        | —                                    |
-| `rdiaz`      | Raúl Díaz        | Mendoza (MZA)            | —                                    |
+| `cmendez`    | Carolina Méndez  | Tucumán (TUC)            | 2001, 2002, 2003                     |
+| `hrojas`     | Hernán Rojas     | **Central (CMC)**        | 2004, 2005                           |
+| `sbenitez`   | Sofía Benítez    | Salta (SLA)              | 2006                                 |
+| `tcabrera`   | Tomás Cabrera    | Santa Fe (SFE)          | —                                    |
+| `vsuarez`    | Valeria Suárez   | Jujuy (JUJ)              | —                                    |
 
-- Solo la **Comisión Médica Central** (`dsosa`) puede usar la opción *«La documentación se debe redirigir a otra área»*.
-- El bolsín 1007 está en estado *Cerrado*: sirve de control, no aparece en ningún listado.
-- Un usuario sin bolsines pendientes (por ejemplo `jperez`) ve el mensaje «No hay bolsines en estado Enviado…».
+- Solo la **Comisión Médica Central** (`hrojas`) puede usar la opción *«La documentación se debe redirigir a otra área»*.
+- El bolsín 2007 está en estado *Cerrado*: sirve de control, no aparece en ningún listado.
+- Un usuario sin bolsines pendientes (por ejemplo `tcabrera`) ve el mensaje «No hay bolsines en estado Enviado…».
 
 ## Estructura del proyecto
 
