@@ -44,7 +44,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class RegistrarRecepcionBolsinTest {
 
-    private static final String TUCUMAN = "cmendez";
+    private static final String CORDOBA = "cmendez";
     private static final String CENTRAL = "hrojas";
 
     @TempDir
@@ -59,10 +59,10 @@ class RegistrarRecepcionBolsinTest {
 
     @Test
     void flujoPrincipal_todoQuedaRecibidoYAceptadoConTrazabilidad() {
-        String salida = ejecutar(TUCUMAN, "2001", "1", "s");
+        String salida = ejecutar(CORDOBA, "2001", "1", "s");
 
         assertTrue(salida.contains("Recepción registrada con éxito"));
-        assertTrue(salida.contains("Para: cmsalta@organismo.gob.ar"), "notifica a la CM de origen (CU 29)");
+        assertTrue(salida.contains("Para: cmrosario@organismo.gob.ar"), "notifica a la CM de origen (CU 29)");
 
         Bolsin bolsin = bolsin(2001);
         assertEquals("Recibido en CM Destino", bolsin.getEstadoActual().getNombre());
@@ -90,18 +90,18 @@ class RegistrarRecepcionBolsinTest {
 
     @Test
     void listado_soloBolsinesEnviadosALaCMDelUsuario() {
-        String salida = ejecutar(TUCUMAN, "c");
+        String salida = ejecutar(CORDOBA, "c");
 
-        assertTrue(salida.contains("Comisión médica: Comisión Médica Tucumán"));
+        assertTrue(salida.contains("Comisión médica: Comisión Médica Córdoba"));
         assertTrue(salida.contains("Bolsín 2001") && salida.contains("Bolsín 2002") && salida.contains("Bolsín 2003"));
         assertFalse(salida.contains("Bolsín 2004"), "destino CMC");
-        assertFalse(salida.contains("Bolsín 2006"), "destino Salta");
+        assertFalse(salida.contains("Bolsín 2006"), "destino Rosario");
         assertFalse(salida.contains("Bolsín 2007"), "está Cerrado, no Enviado");
     }
 
     @Test
     void a1yA2_filtrosSinResultadoInformanYPermitenSeguir() {
-        String salida = ejecutar(TUCUMAN, "p 999999", "o Jujuy", "p 731202", "2002", "1", "s");
+        String salida = ejecutar(CORDOBA, "p 999999", "o Mendoza", "p 731202", "2002", "1", "s");
 
         assertTrue(salida.contains("[A1] No se encuentra bolsín con el número de precinto ingresado."));
         assertTrue(salida.contains("[A2] No se encuentra bolsín con la CM de origen ingresada."));
@@ -110,7 +110,7 @@ class RegistrarRecepcionBolsinTest {
 
     @Test
     void a3_documentacionNoRecibidaDejaElRemitoParcial() {
-        ejecutar(TUCUMAN, "2001", "2", "6002", "s");
+        ejecutar(CORDOBA, "2001", "2", "6002", "s");
 
         Bolsin bolsin = bolsin(2001);
         assertEquals("Recibido en CM Destino", bolsin.getEstadoActual().getNombre());
@@ -122,7 +122,7 @@ class RegistrarRecepcionBolsinTest {
 
     @Test
     void a4_documentacionQueNoCorrespondeQuedaRechazada() {
-        ejecutar(TUCUMAN, "2002", "3", "6005, 6006", "s");
+        ejecutar(CORDOBA, "2002", "3", "6005, 6006", "s");
 
         Bolsin bolsin = bolsin(2002);
         assertEquals("Recibida y Rechazada", documentacion(bolsin, 6005).getEstadoActual().getNombre());
@@ -145,7 +145,7 @@ class RegistrarRecepcionBolsinTest {
 
     @Test
     void a5_unaCMQueNoEsLaCentralNoPuedeRedirigir() {
-        String salida = ejecutar(TUCUMAN, "2001", "4", "6001", "c");
+        String salida = ejecutar(CORDOBA, "2001", "4", "6001", "c");
 
         assertTrue(salida.contains("La opción 4 solo aplica cuando la CM destino es la Comisión Médica Central."));
         assertEquals("Enviado", bolsin(2001).getEstadoActual().getNombre());
@@ -153,7 +153,7 @@ class RegistrarRecepcionBolsinTest {
 
     @Test
     void a6_noConfirmarVuelveAPedirLaOpcionSinRegistrarNada() {
-        String salida = ejecutar(TUCUMAN, "2003", "2", "6008", "n", "c");
+        String salida = ejecutar(CORDOBA, "2003", "2", "6008", "n", "c");
 
         assertTrue(salida.contains("No se confirmó la selección"));
         Bolsin bolsin = bolsin(2003);
@@ -164,7 +164,7 @@ class RegistrarRecepcionBolsinTest {
 
     @Test
     void validaciones_opcionAlternativaSinDocumentacionODeOtroBolsin() {
-        String salida = ejecutar(TUCUMAN, "2001", "2", "", "2", "6004", "c");
+        String salida = ejecutar(CORDOBA, "2001", "2", "", "2", "6004", "c");
 
         assertTrue(salida.contains("Debe indicar al menos una documentación para esta opción."));
         assertTrue(salida.contains("La documentación 6004 no pertenece al bolsín."));
@@ -172,7 +172,7 @@ class RegistrarRecepcionBolsinTest {
 
     @Test
     void patronState_unBolsinYaRecibidoRechazaUnaNuevaRecepcion() {
-        ejecutar(TUCUMAN, "2001", "1", "s");
+        ejecutar(CORDOBA, "2001", "1", "s");
         Bolsin recibido = bolsin(2001);
         Empleado responsable = baseDeDatos.buscarEmpleados().get(0);
 

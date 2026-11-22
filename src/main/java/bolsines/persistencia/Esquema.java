@@ -54,46 +54,46 @@ final class Esquema {
      * Datos de prueba: el resultado de los casos de uso anteriores (7, 15, 19, 39 y 27).
      * Los bolsines ya fueron retirados por el correo, por eso están "Enviado" y sus remitos
      * y documentación "En Bolsin Enviado". Los bolsines 2006 y 2007 son de control: no deben
-     * aparecer en el listado de la CM Tucumán (otro destino y otro estado).
+     * aparecer en el listado de la CM Córdoba (otro destino y otro estado).
      */
     static final String DATOS_DE_PRUEBA = """
             INSERT INTO comision_medica VALUES
-                ('TUC', 'Comisión Médica Tucumán', 'Av. Mate de Luna 320, San Miguel de Tucumán', 'cmtucuman@organismo.gob.ar', '0381-4310001', 0),
-                ('SLA', 'Comisión Médica Salta', 'Av. Belgrano 710, Salta', 'cmsalta@organismo.gob.ar', '0387-4310002', 0),
-                ('SFE', 'Comisión Médica Santa Fe', 'Bv. Gálvez 1520, Santa Fe', 'cmsantafe@organismo.gob.ar', '0342-4310003', 0),
-                ('JUJ', 'Comisión Médica Jujuy', 'Av. Fascio 480, San Salvador de Jujuy', 'cmjujuy@organismo.gob.ar', '0388-4310004', 0),
-                ('CMC', 'Comisión Médica Central', 'Av. Callao 1250, C.A.B.A.', 'cmcentral@organismo.gob.ar', '011-43810000', 1);
+                ('CBA', 'Comisión Médica Córdoba', 'Av. Colón 150, Córdoba', 'cmcordoba@organismo.gob.ar', '0351-4250001', 0),
+                ('ROS', 'Comisión Médica Rosario', 'San Martín 980, Rosario', 'cmrosario@organismo.gob.ar', '0341-4250002', 0),
+                ('VMA', 'Comisión Médica Villa María', 'Bv. España 45, Villa María', 'cmvillamaria@organismo.gob.ar', '0353-4250003', 0),
+                ('MZA', 'Comisión Médica Mendoza', 'San Juan 1200, Mendoza', 'cmmendoza@organismo.gob.ar', '0261-4250004', 0),
+                ('CMC', 'Comisión Médica Central', 'Av. Corrientes 800, C.A.B.A.', 'cmcentral@organismo.gob.ar', '011-43250000', 1);
             INSERT INTO usuario VALUES
                 ('cmendez', 'ppai2026'), ('hrojas', 'ppai2026'), ('sbenitez', 'ppai2026'), ('tcabrera', 'ppai2026'), ('vsuarez', 'ppai2026');
             INSERT INTO empleado VALUES
-                ('carolina.mendez@organismo.gob.ar', 'Carolina', 'Méndez', 'TUC', 'cmendez'),
+                ('carolina.mendez@organismo.gob.ar', 'Carolina', 'Méndez', 'CBA', 'cmendez'),
                 ('hernan.rojas@organismo.gob.ar', 'Hernán', 'Rojas', 'CMC', 'hrojas'),
-                ('sofia.benitez@organismo.gob.ar', 'Sofía', 'Benítez', 'SLA', 'sbenitez'),
-                ('tomas.cabrera@organismo.gob.ar', 'Tomás', 'Cabrera', 'SFE', 'tcabrera'),
-                ('valeria.suarez@organismo.gob.ar', 'Valeria', 'Suárez', 'JUJ', 'vsuarez');
+                ('sofia.benitez@organismo.gob.ar', 'Sofía', 'Benítez', 'ROS', 'sbenitez'),
+                ('tomas.cabrera@organismo.gob.ar', 'Tomás', 'Cabrera', 'VMA', 'tcabrera'),
+                ('valeria.suarez@organismo.gob.ar', 'Valeria', 'Suárez', 'MZA', 'vsuarez');
             INSERT INTO tipo_documentacion VALUES
                 ('Expediente', 'Expediente administrativo'),
                 ('Dictamen', 'Dictamen médico'),
                 ('Estudio Médico', 'Estudio médico complementario'),
                 ('Carta Documento', 'Carta documento');
             INSERT INTO bolsin VALUES
-                (2001, 731201, '2026-11-10', 2100, 'SLA', 'TUC', 'Enviado'),
-                (2002, 731202, '2026-11-10', 1650, 'SFE', 'TUC', 'Enviado'),
-                (2003, 731203, '2026-11-11', 2400, 'CMC', 'TUC', 'Enviado'),
-                (2004, 731204, '2026-11-11', 1300, 'SLA', 'CMC', 'Enviado'),
-                (2005, 731205, '2026-11-11', 1750, 'JUJ', 'CMC', 'Enviado'),
-                (2006, 731206, '2026-11-11', 950, 'TUC', 'SLA', 'Enviado'),
-                (2007, 731207, '2026-11-12', 2050, 'SFE', 'TUC', 'Cerrado');
+                (2001, 731201, '2026-11-10', 2100, 'ROS', 'CBA', 'Enviado'),
+                (2002, 731202, '2026-11-10', 1650, 'VMA', 'CBA', 'Enviado'),
+                (2003, 731203, '2026-11-11', 2400, 'CMC', 'CBA', 'Enviado'),
+                (2004, 731204, '2026-11-11', 1300, 'ROS', 'CMC', 'Enviado'),
+                (2005, 731205, '2026-11-11', 1750, 'MZA', 'CMC', 'Enviado'),
+                (2006, 731206, '2026-11-11', 950, 'CBA', 'ROS', 'Enviado'),
+                (2007, 731207, '2026-11-12', 2050, 'VMA', 'CBA', 'Cerrado');
             INSERT INTO remito VALUES
-                (4001, '2026-11-09', 'SLA', 'TUC', 'En Bolsin Enviado', 2001),
-                (4002, '2026-11-10', 'SLA', 'TUC', 'En Bolsin Enviado', 2001),
-                (4003, '2026-11-10', 'SFE', 'TUC', 'En Bolsin Enviado', 2002),
-                (4004, '2026-11-10', 'CMC', 'TUC', 'En Bolsin Enviado', 2003),
-                (4005, '2026-11-11', 'CMC', 'TUC', 'En Bolsin Enviado', 2003),
-                (4006, '2026-11-11', 'SLA', 'CMC', 'En Bolsin Enviado', 2004),
-                (4007, '2026-11-11', 'JUJ', 'CMC', 'En Bolsin Enviado', 2005),
-                (4008, '2026-11-11', 'TUC', 'SLA', 'En Bolsin Enviado', 2006),
-                (4009, '2026-11-12', 'SFE', 'TUC', 'En Bolsin Saliente', 2007);
+                (4001, '2026-11-09', 'ROS', 'CBA', 'En Bolsin Enviado', 2001),
+                (4002, '2026-11-10', 'ROS', 'CBA', 'En Bolsin Enviado', 2001),
+                (4003, '2026-11-10', 'VMA', 'CBA', 'En Bolsin Enviado', 2002),
+                (4004, '2026-11-10', 'CMC', 'CBA', 'En Bolsin Enviado', 2003),
+                (4005, '2026-11-11', 'CMC', 'CBA', 'En Bolsin Enviado', 2003),
+                (4006, '2026-11-11', 'ROS', 'CMC', 'En Bolsin Enviado', 2004),
+                (4007, '2026-11-11', 'MZA', 'CMC', 'En Bolsin Enviado', 2005),
+                (4008, '2026-11-11', 'CBA', 'ROS', 'En Bolsin Enviado', 2006),
+                (4009, '2026-11-12', 'VMA', 'CBA', 'En Bolsin Saliente', 2007);
             INSERT INTO documentacion VALUES
                 (6001, 'Expediente por accidente laboral - Aguirre, L.', '2026-11-09', 'Expediente', 'En Bolsin Enviado'),
                 (6002, 'Dictamen de incapacidad - Navarro, G.', '2026-11-09', 'Dictamen', 'En Bolsin Enviado'),

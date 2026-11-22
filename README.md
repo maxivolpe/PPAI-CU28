@@ -63,11 +63,11 @@ Todos los usuarios tienen contraseña `ppai2026`. El empleado con el que se inic
 
 | Usuario      | Empleado         | CM del empleado          | Bolsines «Enviado» que puede recibir |
 |--------------|------------------|--------------------------|--------------------------------------|
-| `cmendez`    | Carolina Méndez  | Tucumán (TUC)            | 2001, 2002, 2003                     |
+| `cmendez`    | Carolina Méndez  | Córdoba (CBA)            | 2001, 2002, 2003                     |
 | `hrojas`     | Hernán Rojas     | **Central (CMC)**        | 2004, 2005                           |
-| `sbenitez`   | Sofía Benítez    | Salta (SLA)              | 2006                                 |
-| `tcabrera`   | Tomás Cabrera    | Santa Fe (SFE)          | —                                    |
-| `vsuarez`    | Valeria Suárez   | Jujuy (JUJ)              | —                                    |
+| `sbenitez`   | Sofía Benítez    | Rosario (ROS)            | 2006                                 |
+| `tcabrera`   | Tomás Cabrera    | Villa María (VMA)        | —                                    |
+| `vsuarez`    | Valeria Suárez   | Mendoza (MZA)            | —                                    |
 
 - Solo la **Comisión Médica Central** (`hrojas`) puede usar la opción *«La documentación se debe redirigir a otra área»*.
 - El bolsín 2007 está en estado *Cerrado*: sirve de control, no aparece en ningún listado.
